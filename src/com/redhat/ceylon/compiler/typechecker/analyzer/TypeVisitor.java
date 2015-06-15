@@ -100,14 +100,14 @@ public class TypeVisitor extends Visitor {
     public TypeVisitor(TypecheckerUnit unit, BackendSupport backendSupport) {
         this.unit = unit;
         this.backendSupport = backendSupport;
-        String nat = unit.getPackage().getModule().getNative();
+        String nat = unit.getPackage().getModule().getNativeBackend();
         inBackend = Backend.fromAnnotation(nat);
     }
     
     @Override public void visit(Tree.CompilationUnit that) {
         unit = that.getUnit();
         Backend ib = inBackend;
-        String nat = unit.getPackage().getModule().getNative();
+        String nat = unit.getPackage().getModule().getNativeBackend();
         inBackend = Backend.fromAnnotation(nat);
         super.visit(that);
         inBackend = ib;
@@ -201,13 +201,13 @@ public class TypeVisitor extends Visitor {
             if (alias!=null) {
                 Import o = unit.getImport(dec.getName());
                 if (o!=null && o.isWildcardImport()) {
-                    if (o.getDeclaration().equals(dec)) {
+                    if (o.getDeclaration().equals(dec) || dec.isNativeHeader()) {
                         //this case only happens in the IDE,
                         //due to reuse of the Unit
                         unit.getImports().remove(o);
                         il.getImports().remove(o);
                     }
-                    else {
+                    else if (!dec.isNative()) {
                         i.setAmbiguous(true);
                         o.setAmbiguous(true);
                     }
@@ -297,7 +297,7 @@ public class TypeVisitor extends Visitor {
                 for (ModuleImport mi: module.getImports()) {
                     if (mi.isNative()) {
                         Backend backend = 
-                                Backend.fromAnnotation(mi.getNative());
+                                Backend.fromAnnotation(mi.getNativeBackend());
                         String name = mi.getModule().getNameAsString();
                         if (!backendSupport.supportsBackend(backend)
                                 && (nameToImport.equals(name)
