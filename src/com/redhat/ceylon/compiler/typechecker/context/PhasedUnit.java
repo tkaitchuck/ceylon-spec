@@ -10,6 +10,7 @@ import org.antlr.runtime.CommonToken;
 
 import com.redhat.ceylon.compiler.typechecker.analyzer.AliasVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.AnnotationVisitor;
+import com.redhat.ceylon.compiler.typechecker.analyzer.BlockingVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.ControlFlowVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.DeclarationVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.DefaultTypeArgVisitor;
@@ -443,6 +444,7 @@ public class PhasedUnit {
             rootNode.visit(rc);
             rootNode.visit(new UsageVisitor(rc));
             rootNode.visit(new DeprecationVisitor());
+            rootNode.visit(new BlockingVisitor());
             usageAnalyzed = true;
         }
     }

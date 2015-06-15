@@ -1649,6 +1649,17 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
                         1800);
             }
         }
+        if (hasAnnotation(al, "blocking", unit)) {
+            if (model instanceof Function) {
+                ((Function) model).setBlocking(true);
+            }
+            else if (model instanceof Constructor) {
+                ((Constructor) model).setBlocking(true);
+            }
+            else {
+                that.addError("declaration is not a function and may not be annotated blocking");
+            }
+        }
         if (hasAnnotation(al, "variable", unit)) {
             if (model instanceof Value) {
                 ((Value) model).setVariable(true);
