@@ -15,6 +15,7 @@ import com.redhat.ceylon.compiler.typechecker.analyzer.ControlFlowVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.DeclarationVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.DefaultTypeArgVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.ExpressionVisitor;
+import com.redhat.ceylon.compiler.typechecker.analyzer.ImmutabilityVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.InheritanceVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.LiteralVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.LocalDeclarationVisitor;
@@ -445,6 +446,7 @@ public class PhasedUnit {
             rootNode.visit(new UsageVisitor(rc));
             rootNode.visit(new DeprecationVisitor());
             rootNode.visit(new BlockingVisitor());
+            rootNode.visit(new ImmutabilityVisitor(unit));
             usageAnalyzed = true;
         }
     }

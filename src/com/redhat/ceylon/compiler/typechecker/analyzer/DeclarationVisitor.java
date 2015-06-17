@@ -1726,6 +1726,14 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
                         1600);
             }
         }
+        if (hasAnnotation(al, "immutable", unit)) {
+            if (model instanceof Class) {
+                ((Class) model).setImmutable(true);
+            }
+            else {
+                that.addError("declaration is not a class, and may not be annotated immutable");
+            }
+        }
         buildAnnotations(al, model.getAnnotations());        
     }
 
