@@ -1724,14 +1724,6 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
                         1600);
             }
         }
-        if (hasAnnotation(al, "immutable", unit)) {
-            if (model instanceof Class) {
-                ((Class) model).setImmutable(true);
-            }
-            else {
-                that.addError("declaration is not a class, and may not be annotated immutable");
-            }
-        }
         buildAnnotations(al, model.getAnnotations());        
     }
 
@@ -2193,39 +2185,34 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
         }
     }
     
-    public void visit(Tree.IntersectionType that) {
-        super.visit(that);
-        if (inExtends) {
-            final List<Tree.StaticType> sts = 
-                    that.getStaticTypes();
-            Type t = 
-                    new LazyType(unit) {
-                @Override
-                public TypeDeclaration initDeclaration() {
-                    final List<Type> types = 
-                            new ArrayList<Type>
-                                (sts.size());
-                    for (Tree.StaticType st: sts) {
-                        Type t = st.getTypeModel();
-                        if (t!=null) {
-                            types.add(t);
-                        }
-                    }
-                    IntersectionType it = 
-                            new IntersectionType(unit);
-                    it.setSatisfiedTypes(types);
-                    return it;
-                }
-                @Override
-                public Map<TypeParameter, Type> 
-                initTypeArguments() {
-                    return emptyMap();
-                }
-            };
-            that.setTypeModel(t);
-        }
-    }
-    
+	public void visit(Tree.IntersectionType that) {
+		super.visit(that);
+		if (inExtends) {
+			final List<Tree.StaticType> sts = that.getStaticTypes();
+			Type t = new LazyType(unit) {
+				@Override
+				public TypeDeclaration initDeclaration() {
+					final List<Type> types = new ArrayList<Type>(sts.size());
+					for (Tree.StaticType st : sts) {
+						Type t = st.getTypeModel();
+						if (t != null) {
+							types.add(t);
+						}
+					}
+					IntersectionType it = new IntersectionType(unit);
+					it.setSatisfiedTypes(types);
+					return it;
+				}
+
+				@Override
+				public Map<TypeParameter, Type> initTypeArguments() {
+					return emptyMap();
+				}
+			};
+			that.setTypeModel(t);
+		}
+	}
+
     public void visit(Tree.SequenceType that) {
         super.visit(that);
         if (inExtends) {
@@ -2496,16 +2483,13 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
         inExtends = true;
         super.visit(that);
         inExtends = false;
-        TypeDeclaration td = 
-                (TypeDeclaration) 
-                    that.getScope();
+		TypeDeclaration td = (TypeDeclaration) that.getScope();
         if (td.isAlias()) {
             return;
         }
         List<Tree.StaticType> types = that.getTypes();
-        List<Type> list = 
-                new ArrayList<Type>
-                    (types.size());
+        
+		List<Type> list = new ArrayList<Type>(types.size());
         for (Tree.StaticType st: types) {
             if (st!=null) {
                 Type type = st.getTypeModel();

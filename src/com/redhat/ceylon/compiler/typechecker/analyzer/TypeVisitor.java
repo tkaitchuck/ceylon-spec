@@ -1708,16 +1708,12 @@ public class TypeVisitor extends Visitor {
     @Override 
     public void visit(Tree.SatisfiedTypes that) {
         super.visit(that);
-        TypeDeclaration td = 
-                (TypeDeclaration) 
-                    that.getScope();
+		TypeDeclaration td = (TypeDeclaration) that.getScope();
         if (td.isAlias()) {
             return;
         }
         List<Tree.StaticType> types = that.getTypes();
-        List<Type> list = 
-                new ArrayList<Type>
-                    (types.size());
+		List<Type> list = new ArrayList<Type>(types.size());
         if (types.isEmpty()) {
             that.addError("missing types in satisfies");
         }
