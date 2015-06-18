@@ -16,11 +16,6 @@ import com.redhat.ceylon.model.typechecker.model.Type;
  * annotated Immutable.
  * 
  * @author Tom Kaitchuck 
- * TODO: Identify super classes that are not immutable
- * TODO: Identify immutable primitives to exclude them from the check. 
- * TODO: Handle satisfying an immutable interface.
- * TODO: Validate nested types.
- * TODO: Figure out how to automatically add Immutable interface to annotated types.
  */
 public class ImmutabilityVisitor extends Visitor {
 
