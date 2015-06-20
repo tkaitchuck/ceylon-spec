@@ -137,11 +137,18 @@
 ^(CLASS_DEFINITION:ANY_CLASS
     CLASS_BODY)
 
+^(ENUMERATED:DECLARATION
+    DELEGATED_CONSTRUCTOR?
+    BLOCK
+    Value declarationModel;
+    Constructor enumerated;)
+
 ^(CONSTRUCTOR:DECLARATION
     PARAMETER_LIST?
     DELEGATED_CONSTRUCTOR?
     BLOCK
-    Constructor declarationModel;)
+    Function declarationModel;
+    Constructor constructor;)
 
 ^(DELEGATED_CONSTRUCTOR
     SIMPLE_TYPE? type

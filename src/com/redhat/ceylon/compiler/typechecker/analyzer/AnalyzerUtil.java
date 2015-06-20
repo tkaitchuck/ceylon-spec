@@ -27,6 +27,7 @@ import com.redhat.ceylon.compiler.typechecker.tree.Tree.TypeVariance;
 import com.redhat.ceylon.model.typechecker.model.Class;
 import com.redhat.ceylon.model.typechecker.model.Constructor;
 import com.redhat.ceylon.model.typechecker.model.Declaration;
+import com.redhat.ceylon.model.typechecker.model.FunctionOrValue;
 import com.redhat.ceylon.model.typechecker.model.Generic;
 import com.redhat.ceylon.model.typechecker.model.Interface;
 import com.redhat.ceylon.model.typechecker.model.Module;
@@ -152,9 +153,10 @@ public class AnalyzerUtil {
         if (type!=null) {
             TypeDeclaration typeDeclaration = 
                     type.getDeclaration();
-            if (typeDeclaration instanceof Class &&
+            if ((typeDeclaration instanceof Class ||
+                typeDeclaration instanceof Constructor) &&
                     typeDeclaration.isAnonymous() &&
-                    isNamed(name,typeDeclaration)) {
+                    isNamed(name, typeDeclaration)) {
                 return typeDeclaration;
             }
         }
@@ -286,19 +288,21 @@ public class AnalyzerUtil {
         for (int i=statements.size()-1; i>=0; i--) {
             Tree.Statement s = statements.get(i);
             if (isExecutableStatement(unit, s) || 
-                    s instanceof Tree.Constructor) {
+                    s instanceof Tree.Constructor ||
+                    s instanceof Tree.Enumerated) {
                 return s;
             }
         }
         return null;
     }
 
-    static Tree.Constructor getLastConstructor(Tree.ClassBody that) {
+    static Tree.Declaration getLastConstructor(Tree.ClassBody that) {
         List<Tree.Statement> statements = that.getStatements();
         for (int i=statements.size()-1; i>=0; i--) {
             Tree.Statement s = statements.get(i);
-            if (s instanceof Tree.Constructor) {
-                return (Tree.Constructor) s;
+            if (s instanceof Tree.Constructor ||
+                s instanceof Tree.Enumerated) {
+                return (Tree.Declaration) s;
             }
         }
         return null;
@@ -325,11 +329,6 @@ public class AnalyzerUtil {
         		return sie!=null && 
         		        !(sie instanceof Tree.LazySpecifierExpression);
             }
-            /*else if (s instanceof Tree.MethodDeclaration) {
-                if ( ((Tree.MethodDeclaration) s).getSpecifierExpression()!=null ) {
-                    return s;
-                }
-            }*/
             else if (s instanceof Tree.ObjectDefinition) {
                 Tree.ObjectDefinition o = 
                         (Tree.ObjectDefinition) s;
@@ -797,7 +796,7 @@ public class AnalyzerUtil {
             }
             if (that.getStaticMethodReference()) {
                 if (d.isStaticallyImportable() || 
-                        d instanceof Constructor) {
+                        isConstructor(d)) {
                     Tree.QualifiedMemberOrTypeExpression qmte = 
                             (Tree.QualifiedMemberOrTypeExpression) 
                                 that;
@@ -1132,6 +1131,14 @@ public class AnalyzerUtil {
             }
         }
         return type;
+    }
+
+    static boolean isConstructor(Declaration member) {
+        return member instanceof Constructor ||
+                member instanceof FunctionOrValue && 
+                    ((FunctionOrValue) member)
+                        .getTypeDeclaration() 
+                            instanceof Constructor;
     }
 
 }

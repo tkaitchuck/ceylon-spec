@@ -6,6 +6,7 @@ import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTy
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypeDeclaration;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypeMember;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypedDeclaration;
+import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.isConstructor;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.setTypeConstructor;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.unwrapAliasedTypeConstructor;
 import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.formatPath;
@@ -166,7 +167,7 @@ public class TypeVisitor extends Visitor {
         for (Declaration dec: importedType.getMembers()) {
             if (dec.isShared() && 
                     (dec.isStaticallyImportable() || 
-                            dec instanceof Constructor) && 
+                            isConstructor(dec)) && 
                     !dec.isAnonymous() && 
                     !ignoredMembers.contains(dec.getName())) {
                 addWildcardImport(til, dec, importedType);
@@ -385,7 +386,7 @@ public class TypeVisitor extends Visitor {
         if (importedDec instanceof Value) {
             Value value = (Value) importedDec;
             TypeDeclaration td = value.getTypeDeclaration();
-            return td.isAnonymous() && td.equals(dec);
+            return td.isObjectClass() && td.equals(dec);
         }
         else {
             return false;
@@ -400,7 +401,7 @@ public class TypeVisitor extends Visitor {
             if (d instanceof Value) {
                 Value v = (Value) d;
                 TypeDeclaration td = v.getTypeDeclaration();
-                if (td.isAnonymous()) {
+                if (td.isObjectClass()) {
                     d = td;
                 }
             }
@@ -1291,7 +1292,14 @@ public class TypeVisitor extends Visitor {
                     cd.getName() + 
                     "' has a parameter list and a constructor");
         }
-        if (pl==null && !cd.hasConstructors()) {
+        else if (pl!=null && cd.hasEnumerated()) {
+            pl.addError("class with parameters may not declare constructors: class '" + 
+                    cd.getName() + 
+                    "' has a parameter list and a value constructor");
+        }
+        if (pl==null && 
+                !cd.hasConstructors() && 
+                !cd.hasEnumerated()) {
             that.addError("class without parameters must declare at least one constructor: class '" + 
                     cd.getName() + 
                     "' has neither parameter list nor constructors", 
@@ -1823,7 +1831,10 @@ public class TypeVisitor extends Visitor {
         List<Tree.BaseMemberExpression> bmes = 
                 that.getBaseMemberExpressions();
         List<Tree.StaticType> cts = that.getTypes();
-        List<Type> list = 
+        List<TypedDeclaration> caseValues = 
+                new ArrayList<TypedDeclaration>
+                    (bmes.size());
+        List<Type> caseTypes = 
                 new ArrayList<Type>
                     (bmes.size()+cts.size());
         if (td instanceof TypeParameter) {
@@ -1839,9 +1850,10 @@ public class TypeVisitor extends Visitor {
                                 name(bme.getIdentifier()), 
                                 null, false, bme.getUnit());
                 if (od!=null) {
+                    caseValues.add(od);
                     Type type = od.getType();
                     if (type!=null) {
-                        list.add(type);
+                        caseTypes.add(type);
                     }
                 }
             }
@@ -1869,11 +1881,11 @@ public class TypeVisitor extends Visitor {
                                     td.getName() + "'");
                         }
                         else if (type.isClassOrInterface()) {
-                            list.add(type);
+                            caseTypes.add(type);
                         }
                         else if (type.isTypeParameter()) {
                             if (td instanceof TypeParameter) {
-                                list.add(type);
+                                caseTypes.add(type);
                             }
                             else {
                                 TypeParameter tp = 
@@ -1884,7 +1896,7 @@ public class TypeVisitor extends Visitor {
                                 }
                                 else {
                                     tp.setSelfTypedDeclaration(td);
-                                    list.add(type);
+                                    caseTypes.add(type);
                                 }
                                 if (cts.size()>1) {
                                     ct.addError("a type may not have more than one self type");
@@ -1903,12 +1915,12 @@ public class TypeVisitor extends Visitor {
                 }
             }
         }
-        if (!list.isEmpty()) {
-            if (list.size() == 1 && 
-                    list.get(0).getDeclaration()
+        if (!caseTypes.isEmpty()) {
+            if (caseTypes.size() == 1 && 
+                    caseTypes.get(0).getDeclaration()
                         .isSelfType()) {
                 Scope scope = 
-                        list.get(0)
+                        caseTypes.get(0)
                             .getDeclaration()
                             .getContainer();
                 if (scope instanceof ClassOrInterface) {
@@ -1925,12 +1937,16 @@ public class TypeVisitor extends Visitor {
                     ClassOrInterface ci = 
                             (ClassOrInterface) td;
                     if (!ci.isAbstract()) {
-                        that.addError("non-abstract class has enumerated subtypes: '" +
-                                td.getName() + "'", 905);
+                        Class c = (Class) ci;
+                        if (!c.hasEnumerated()) {
+                            that.addError("non-abstract class has enumerated subtypes: '" +
+                                    td.getName() + "'", 905);
+                        }
                     }
                 }
             }
-            td.setCaseTypes(list);
+            td.setCaseTypes(caseTypes);
+            td.setCaseValues(caseValues);
         }
     }
 
@@ -1976,8 +1992,7 @@ public class TypeVisitor extends Visitor {
             }
             else {
                 TypeDeclaration td = v.getTypeDeclaration();
-                return !(td instanceof Class) || 
-                        !td.isAnonymous();
+                return td==null || !td.isObjectClass();
             }
         }
         else if (a instanceof Function) {

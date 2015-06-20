@@ -1,7 +1,9 @@
 package com.redhat.ceylon.compiler.typechecker.analyzer;
 
+import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.NO_TYPE_ARGS;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getPackageTypeDeclaration;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypeDeclaration;
+import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.isConstructor;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.TypeVisitor.getTupleType;
 import static com.redhat.ceylon.compiler.typechecker.parser.CeylonLexer.SPECIFY;
 import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.buildAnnotations;
@@ -177,7 +179,7 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
             Declaration model,
             Tree.Identifier id) {
         if (id==null || id.isMissingToken()) {
-            if (model instanceof Constructor) {
+            if (that instanceof Tree.Constructor) {
                 return true;                
             }
             else {
@@ -357,47 +359,9 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
         if (name!=null) {
             if (model instanceof Setter) {
                 Setter setter = (Setter) model;
-                //a setter must have a matching getter
-                Declaration g;
-                Tree.AnnotationList al = 
-                        that.getAnnotationList();
-                Declaration member = 
-                        getDirectMemberForBackend(model.getContainer(),
-                                name,
-                                getNativeBackend(al, unit));
-                if (member == null
-                        && (g = getDirectMemberForBackend(scope, name,
-                                Backend.None.nativeAnnotation)) != null
-                        && g instanceof Value) {
-                    setter.setGetter((Value)g);
-                    that.addError("setter must be marked native: '" +
-                            name + "'");
-                }
-                else if (member==null) {
-                    that.addError("setter with no matching getter: '" + 
-                            name + "'");
-                }
-                else if (!(member instanceof Value)) {
-                    that.addError("setter name does not resolve to matching getter: '" + 
-                            name + "'");
-                }
-                else if (!((Value) member).isTransient() && 
-                        !isNativeHeader(member)) {
-                    that.addError("matching value is a reference or is forward-declared: '" + 
-                            name + "'");
-                }
-                else {
-                    Value getter = (Value) member;
-                    setter.setGetter(getter);
-                    if (getter.isVariable()) {
-                        that.addError("duplicate setter for getter: '" + 
-                                name + "'");
-                    }
-                    else {
-                        getter.setSetter(setter);
-                    }
-                    setter.setNativeBackend(getter.getNativeBackend());
-                }
+
+                checkGetterForSetter(that, setter, unit);
+
             }
             else {
                 // this isn't the correct scope for declaration
@@ -411,16 +375,27 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
                                     null, false);
                     if (member!=null && member!=model) {
                         boolean dup = false;
-                        boolean memberCanBeNative = 
-                                member instanceof Function || 
-                                member instanceof Value || 
-                                member instanceof Class;
-                        boolean modelCanBeNative = 
-                                model instanceof Function || 
-                                model instanceof Value || 
-                                model instanceof Class;
+/*<<<<<<< HEAD
+                        boolean possibleOverloadedMethod = 
+                                member instanceof Function && 
+                                model instanceof Function &&
+                                !(that instanceof Tree.Constructor ||
+                                  that instanceof Tree.Enumerated) &&
+                                scope instanceof ClassOrInterface;
+                        if (possibleOverloadedMethod) {
+                            // anticipate that it might be
+                            // an overloaded method 
+                            // overriding a method inherited 
+                            // from a Java superclass - then
+                            // further checking happens in
+                            // RefinementVisitor
+                            initOverload(model, member, 
+                                    scope, unit);
+=======*/
                         if (member instanceof Function && 
                             model instanceof Function &&
+                            !(that instanceof Tree.Constructor ||
+                                    that instanceof Tree.Enumerated) &&
                             scope instanceof ClassOrInterface &&
                             !member.isNative()) {
                             //even though Ceylon does not 
@@ -429,40 +404,15 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
                             //a method that is refining an
                             //overloaded method inherited from
                             //a Java superclass
-                            Function abstraction;
-                            Function method = (Function) member;
-                            Function newMethod = (Function) model;
-                            newMethod.setOverloaded(true);
-                            if (!method.isAbstraction()) {
-                                //create the "abstraction" 
-                                //for the overloaded method
-                                method.setOverloaded(true);
-                                abstraction = new Function();
-                                abstraction.setAbstraction(true);
-                                abstraction.setType(
-                                        new UnknownType(unit)
-                                            .getType());
-                                abstraction.setName(name);
-                                abstraction.setShared(true);
-                                abstraction.setActual(true);
-                                abstraction.setContainer(scope);
-                                abstraction.setScope(scope);
-                                abstraction.setUnit(unit);
-                                abstraction.initOverloads(
-                                        method, newMethod);
-                                scope.addMember(abstraction);
-                            }
-                            else {
-                                abstraction = method;
-                                abstraction.getOverloads()
-                                    .add(model);
-                            }
+                            initOverload(model, member, scope, unit);
+//>>>>>>> origin/master
                             dup = true;
                         }
-                        else if (memberCanBeNative && 
-                                modelCanBeNative &&
-                                model.isNative()) {
-                            // Just to make sure no error gets reported
+                        else if (canBeNative(member) && 
+                                 canBeNative(model) &&
+                                 model.isNative()) {
+                            // just to make sure no error 
+                            // gets reported
                         }
                         else {
                             dup = true;
@@ -492,6 +442,90 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
                         .add(defaultConstructor);
                 }
             }
+        }
+    }
+
+    protected static boolean canBeNative(Declaration member) {
+        return member instanceof Function || 
+        member instanceof Value || 
+        member instanceof Class;
+    }
+
+    private static void checkGetterForSetter(Tree.Declaration that,
+            Setter setter, Unit unit) {
+        //a setter must have a matching getter
+        Tree.AnnotationList al = 
+                that.getAnnotationList();
+        String name = setter.getName();
+        Declaration member = 
+                getDirectMemberForBackend(
+                        setter.getContainer(), name, 
+                        getNativeBackend(al, unit));
+        if (member==null) {
+            that.addError("setter with no matching getter: '" + 
+                    name + "'");
+        }
+        else if (!(member instanceof Value)) {
+            that.addError("setter name does not resolve to matching getter: '" + 
+                    name + "'");
+        }
+        else if (!((Value) member).isTransient() && 
+                !isNativeHeader(member)) {
+            that.addError("matching value is a reference or is forward-declared: '" + 
+                    name + "'");
+        }
+        else {
+            Value getter = (Value) member;
+            setter.setGetter(getter);
+            if (getter.isVariable()) {
+                that.addError("duplicate setter for getter: '" + 
+                        name + "'");
+            }
+            else {
+                getter.setSetter(setter);
+            }
+            setter.setNativeBackend(getter.getNativeBackend());
+        }
+    }
+
+    private static void initOverload(
+            Declaration model, Declaration member,
+            Scope scope, Unit unit) {
+        //even though Ceylon does not 
+        //officially support overloading,
+        //we actually do let you overload
+        //a method that is refining an
+        //overloaded method inherited from
+        //a Java superclass
+        Function abstraction;
+        Function method = 
+                (Function) member;
+        Function newMethod = 
+                (Function) model;
+        newMethod.setOverloaded(true);
+        if (!method.isAbstraction()) {
+            //create the "abstraction" 
+            //for the overloaded method
+            method.setOverloaded(true);
+            abstraction = new Function();
+            abstraction.setAbstraction(true);
+            abstraction.setType(
+                    new UnknownType(unit)
+                        .getType());
+            abstraction.setName(model.getName());
+            abstraction.setShared(true);
+            abstraction.setActual(true);
+            abstraction.setContainer(scope);
+            abstraction.setScope(scope);
+            abstraction.setUnit(unit);
+            abstraction.initOverloads(
+                    method, newMethod);
+            scope.addMember(abstraction);
+        }
+        else {
+            abstraction = method;
+            abstraction.getOverloads()
+                .add(model);
         }
     }
 
@@ -746,20 +780,29 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
     @Override
     public void visit(Tree.Constructor that) {
         Constructor c = new Constructor();
+        Type at;
         if (scope instanceof Class) {
             Class clazz = (Class) scope;
-            c.setExtendedType(clazz.getType());
+            Type ot = clazz.getType();
+            c.setExtendedType(ot);
+            at = c.appliedType(ot, NO_TYPE_ARGS);
             clazz.setConstructors(true);
             if (clazz.isAnonymous()) {
-                that.addError("anonymous class may not have constructor");
+                that.addError("anonymous class may not have constructor: '" + 
+                        clazz.getName() + "' is an anonymous class");
             }
             
         }
         else {
+            at = null;
             that.addError("constructor declaration must occur directly in the body of a class");
         }
-        that.setDeclarationModel(c);
-        visitDeclaration(that, c);
+        that.setConstructor(c);
+        visitDeclaration(that, c, false);
+        Function f = new Function();
+        f.setType(at);
+        that.setDeclarationModel(f);
+        visitDeclaration(that, f);
         Scope o = enterScope(c);
         super.visit(that);
         exitScope(o);
@@ -771,9 +814,14 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
         }
         else {
             ParameterList model = 
-                    that.getParameterList().getModel();
+                    that.getParameterList()
+                        .getModel();
             model.setFirst(true);
-            c.addParameterList(model);
+            if (model!=null) {
+                c.addParameterList(model);
+                //TODO: fix this
+                f.addParameterList(model);
+            }
         }
         if (that.getIdentifier()==null) {
             //default constructor
@@ -797,6 +845,48 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
             that.addError("abstract constructor may not be annotated shared", 
                     1610);
         }
+    }
+
+    @Override
+    public void visit(Tree.Enumerated that) {
+        Constructor e = new Constructor();
+        Type at;
+        if (scope instanceof Class) {
+            Class clazz = (Class) scope;
+            Type ot = clazz.getType();
+            e.setExtendedType(ot);
+            at = e.appliedType(ot, NO_TYPE_ARGS);
+            clazz.setEnumerated(true);
+            if (clazz.isAnonymous()) {
+                that.addError("anonymous class may not have a value constructor: '" + 
+                        clazz.getName() + "' is an anonymous class");
+            }
+            else if (clazz.isAbstract()) {
+                that.addError("abstract class may not have a value constructor: '" + 
+                        clazz.getName() + "' is abstract");
+            }
+            else if (!clazz.getTypeParameters().isEmpty()) {
+                that.addError("generic class may not have a value constructor: '" + 
+                        clazz.getName() + "' is generic");
+            }
+            else if (scope.getContainer() instanceof Interface) {
+                that.addError("class nested inside an interface may not have a value constructor: '" +
+                        clazz.getName() + "' belongs to an interface");
+            }
+        }
+        else {
+            at = null;
+            that.addError("value constructor declaration must occur directly in the body of a class");
+        }
+        that.setEnumerated(e);
+        visitDeclaration(that, e, false);
+        Value v = new Value();
+        v.setType(at);
+        that.setDeclarationModel(v);
+        visitDeclaration(that, v);
+        Scope o = enterScope(e);
+        super.visit(that);
+        exitScope(o);
     }
 
     @Override
@@ -1618,8 +1708,17 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
             if (model instanceof Class) {
                 ((Class) model).setAbstract(true);
             }
-            else if (model instanceof Constructor) {
-                ((Constructor) model).setAbstract(true);
+            else if (isConstructor(model)) {
+                if (model instanceof Constructor) {
+                    //ignore for now
+                }
+                else if (model instanceof Function) {
+                    ((Constructor)((Function) model).getTypeDeclaration()).setAbstract(true);
+                }
+                else {
+                    that.addError("declaration is not a callable constructor, and may not be annotated abstract", 
+                            1800);
+                }
             }
             else {
                 that.addError("declaration is not a class, and may not be annotated abstract", 
@@ -1639,8 +1738,17 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
             if (model instanceof ClassOrInterface) {
                 ((ClassOrInterface) model).setSealed(true);
             }
-            else if (model instanceof Constructor) {
-                ((Constructor) model).setSealed(true);
+            else if (isConstructor(model)) {
+                if (model instanceof Constructor) {
+                    //ignore for now
+                }
+                else if (model instanceof Function) {
+                    ((Function) model).getTypeDeclaration().setSealed(true);
+                }
+                else {
+                    that.addError("declaration is not a callable constructor, and may not be annotated sealed", 
+                            1800);
+                }
             }
             else {
                 that.addError("declaration is not a class or interface, and may not be annotated sealed", 

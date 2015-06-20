@@ -51,7 +51,7 @@ public class SpecificationVisitor extends Visitor {
     private boolean declared = false;
     private boolean hasParameter = false;
     private Tree.Statement lastExecutableStatement;
-    private Tree.Constructor lastConstructor;
+    private Tree.Declaration lastConstructor;
     private boolean declarationSection = false;
     private boolean endsInBreakReturnThrow = false;
     private boolean inExtends = false;
@@ -485,11 +485,11 @@ public class SpecificationVisitor extends Visitor {
             if (specified.possibly) {
                 possiblyInitedBy.add(c);
             }
-            if (!c.isAbstract() &&
-                    declaration.getContainer()==c.getContainer()) {
-                if (!specified.definitely) {
-                    initedByEveryConstructor = false;
-                }
+        }
+        if (isNonPartialConstructor(scope) &&
+                declaration.getContainer()==scope.getContainer()) {
+            if (!specified.definitely) {
+                initedByEveryConstructor = false;
             }
         }
     }
@@ -596,6 +596,11 @@ public class SpecificationVisitor extends Visitor {
     		withinAttributeInitializer = false;
     	}
     }
+
+    private static boolean isNonPartialConstructor(Scope scope) {
+        return scope instanceof Constructor &&
+                !((Constructor) scope).isAbstract();
+    }
     
     private String longdesc() {
         if (declaration instanceof Value) {
@@ -633,7 +638,8 @@ public class SpecificationVisitor extends Visitor {
         }
         if (term instanceof Tree.StaticMemberOrTypeExpression) {
             Tree.StaticMemberOrTypeExpression bme = 
-                    (Tree.StaticMemberOrTypeExpression) term;
+                    (Tree.StaticMemberOrTypeExpression) 
+                        term;
 //            Declaration member = getTypedDeclaration(bme.getScope(), 
 //                    name(bme.getIdentifier()), null, false, bme.getUnit());
 	        Declaration member = bme.getDeclaration();
@@ -774,8 +780,9 @@ public class SpecificationVisitor extends Visitor {
         else {
             boolean l = inLoop;
             inLoop = false;
+            Scope scope = that.getScope();
             boolean constructor = 
-                    that instanceof Tree.Constructor;
+                    scope instanceof Constructor;
             boolean c = false;
             if (!constructor) {
                 c = beginDisabledSpecificationScope();
@@ -797,13 +804,30 @@ public class SpecificationVisitor extends Visitor {
     
     @Override
     public void visit(Tree.Constructor that) {
-        Constructor c = that.getDeclarationModel();
-        if (c==declaration) {
+        Function f = that.getDeclarationModel();
+        Constructor c = that.getConstructor();
+        if (f==declaration || c==declaration) {
             declare();
             specify();
         }
         super.visit(that);
         if (declaration.getContainer()==c.getContainer() &&
+                that==lastConstructor && 
+                initedByEveryConstructor) {
+            specified.definitely = true;
+        }
+    }
+
+    @Override
+    public void visit(Tree.Enumerated that) {
+        Value v = that.getDeclarationModel();
+        Constructor e = that.getEnumerated();
+        if (v==declaration || e==declaration) {
+            declare();
+            specify();
+        }
+        super.visit(that);
+        if (declaration.getContainer()==e.getContainer() &&
                 that==lastConstructor && 
                 initedByEveryConstructor) {
             specified.definitely = true;
@@ -1007,7 +1031,7 @@ public class SpecificationVisitor extends Visitor {
             declare();
             specify();
         }
-        super.visit(that);        
+        super.visit(that);
     }
     
     @Override
@@ -1044,7 +1068,7 @@ public class SpecificationVisitor extends Visitor {
     public void visit(Tree.ClassBody that) {
         if (that.getScope()==declaration.getContainer()) {
             Tree.Statement les = getLastExecutableStatement(that);
-            Tree.Constructor lc = getLastConstructor(that);
+            Tree.Declaration lc = getLastConstructor(that);
             declarationSection = les==null;
             lastExecutableStatement = les;
             lastConstructor = lc;
@@ -1056,9 +1080,9 @@ public class SpecificationVisitor extends Visitor {
             if (!declaration.isAnonymous()) {
                 if (isSharedDeclarationUninitialized()) {
                     getDeclaration(that)
-                    .addError("must be definitely specified by class initializer: '" + 
-                            declaration.getName() + "' is shared", 
-                            1401);
+                        .addError("must be definitely specified by class initializer: " + 
+                                message(declaration) + " is shared", 
+                                1401);
                 }
             }
         }
@@ -1074,7 +1098,8 @@ public class SpecificationVisitor extends Visitor {
     }
 
     private void checkDeclarationSection(Tree.Statement that) {
-        declarationSection = declarationSection || 
+        declarationSection = 
+                declarationSection || 
                 that==lastExecutableStatement;
     }
     

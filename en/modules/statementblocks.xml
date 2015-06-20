@@ -702,8 +702,9 @@ Integer f(Integer n) => n+package.n;</programlisting>
                     in <literal>Sequence&lt;String&gt;</literal>,</para>
                 </listitem>
                 <listitem>
-                    <para>the value, function, or type name in a base expression, 
-                    as defined by <xref linkend="baseexpressions"/>, for example 
+                    <para>the value, function, constructor, or type name in a base 
+                    expression, as defined by <xref linkend="baseexpressions"/>, 
+                    for example 
                     <literal>counter</literal> in <literal>counter.count</literal>, 
                     <literal>entries</literal> and <literal>people</literal> in 
                     <literal>entries(people*.name)</literal>, or 
@@ -713,8 +714,9 @@ Integer f(Integer n) => n+package.n;</programlisting>
                 </listitem>
                 <listitem>
                     <para>the type name in an unqualified type in a static expression, 
-                    as defined by <xref linkend="staticexpressions"/>, for example 
-                    <literal>Sequence</literal> in 
+                    as defined by <xref linkend="staticexpressions"/>, or constructor
+                    expression, as defined by <xref linkend="constructorexpressions"/>, 
+                    for example <literal>Sequence</literal> in 
                     <literal>Sequence.iterator</literal>.</para>
                 </listitem>
             </itemizedlist>
@@ -1586,7 +1588,8 @@ else {
                 </listitem>
                 <listitem>
                     <para>The constructors of a class definitely initialize a declaration if
-                    every constructor of the class definitely initializes the declaration.</para>
+                    every non-partial constructor of the class definitely initializes the 
+                    declaration.</para>
                 </listitem>
             </itemizedlist>
             
@@ -1717,14 +1720,13 @@ else {
                     the declaration.</para>
                 </listitem>
                 <listitem>
-                    <para>A constructor of a class possibly initializes a declaration if the 
-                    body of the constructor possibly initializes the declaration, or if the 
-                    constructor delegates to a constructor which possibly initializes the 
-                    declaration.</para>
+                    <para>A constructor of a class possibly initializes a declaration if the body 
+                    of the constructor possibly initializes the declaration, or if the constructor 
+                    delegates to a constructor which possibly initializes the declaration.</para>
                 </listitem>
                 <listitem>
-                    <para>The constructors of a class possibly initialize a declaration if
-                    at least one constructor of the class definitely initializes the declaration.</para>
+                    <para>The constructors of a class possibly initialize a declaration if at least 
+                    one constructor of the class possibly initializes the declaration.</para>
                 </listitem>
             </itemizedlist>
             
@@ -2129,14 +2131,19 @@ if (is Usable tx) { ... }</programlisting>
             <itemizedlist>
                 <listitem>
                     <para>a <emphasis>value case</emphasis>&mdash;a list of string literals, 
-                    character literals, integer literals, negated integer literals, and/or 
-                    value references to anonymous classes, or</para>
+                    character literals, integer literals, negated integer literals, value 
+                    references to value constructors, and/or value references to anonymous 
+                    classes, or</para>
                 </listitem>
                 <listitem>
                     <para>a <emphasis>type case</emphasis>&mdash;an assignability condition 
                     of form <literal>is V</literal> for some type <literal>V</literal>.</para>
                 </listitem>
             </itemizedlist>
+            
+            <para>For a value case, each value reference must be to an anonymous class that
+            is a subtype of <literal>Identifiable|Null</literal> or to a value constructor 
+            for a class that is a subtype of <literal>Identifiable</literal>.</para>
             
             <synopsis>CaseCondition: "(" (ValueCase | TypeCase) ")"</synopsis>
             <synopsis>ValueCase: CaseValue ("|" CaseValue)*</synopsis>
@@ -2156,10 +2163,11 @@ if (is Usable tx) { ... }</programlisting>
                 </listitem>
             </itemizedlist>
             
-            <!--para>The type of every case condition must be a subtype of the switched type.</para-->
-            
-            <para>For a value case, each value reference must be to an anonymous class that
-            is a subtype of <literal>Identifiable|Null</literal>.</para>
+            <comment><para>Note: to each value constructor, the compiler assigns an internal
+            type which is a subtype of the type of the class to which the constructor belongs.
+            The union of all internal value constructor types for value constructors listed 
+            in the <literal>of</literal> clause of the class declaration covers the class 
+            type.</para></comment>
             
             <para>For a case of type <literal>U</literal> of a <literal>switch</literal> with 
             switched type <literal>V</literal>, as defined below in 
@@ -2343,8 +2351,8 @@ else {
             
             <synopsis>SwitchVariableOrExpression: Expression | Variable Specifier</synopsis>
             
-            <para>The <emphasis>switched type</emphasis> is the type of the expression
-            or inline variable.</para>
+            <para>The <emphasis>switched type</emphasis> is the type of the expression or 
+            inline variable.</para>
             
             <comment><para>Note: there is an ambiguity here between assignment expressions
             and inline variable declarations. This ambiguity is resolved in favor of 
@@ -2475,8 +2483,8 @@ case (is Float) {
             <synopsis>Fail: "else" Block</synopsis>
             
             <para>Every <literal>for/else</literal> conditional construct has an 
-            <literal>for</literal> clause. The construct may optionally include
-            an <literal>else</literal> clause, as specified in 
+            <literal>for</literal> clause. The construct may optionally include an 
+            <literal>else</literal> clause, as specified in 
             <xref linkend="executionofloops"/>.</para>
             
             <para>The <literal>for</literal> iterator has an <emphasis>iterator 

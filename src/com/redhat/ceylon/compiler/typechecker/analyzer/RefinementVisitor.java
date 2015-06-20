@@ -10,6 +10,7 @@ import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.check
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.declaredInPackage;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypeErrorNode;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypedDeclaration;
+import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.isConstructor;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.message;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.DeclarationVisitor.setVisibleScope;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.ExpressionVisitor.getRefinedMember;
@@ -43,7 +44,6 @@ import com.redhat.ceylon.compiler.typechecker.tree.Visitor;
 import com.redhat.ceylon.model.typechecker.model.Annotation;
 import com.redhat.ceylon.model.typechecker.model.Class;
 import com.redhat.ceylon.model.typechecker.model.ClassOrInterface;
-import com.redhat.ceylon.model.typechecker.model.Constructor;
 import com.redhat.ceylon.model.typechecker.model.Declaration;
 import com.redhat.ceylon.model.typechecker.model.Function;
 import com.redhat.ceylon.model.typechecker.model.Functional;
@@ -146,6 +146,7 @@ public class RefinementVisitor extends Visitor {
             boolean member = 
                     dec.isClassOrInterfaceMember() &&
                     dec.isShared() &&
+                    !isConstructor(dec) &&
                     !(dec instanceof TypeParameter); //TODO: what about nested interfaces and abstract classes?!            
             if (member) {
                 checkMember(that, dec);
@@ -531,9 +532,6 @@ public class RefinementVisitor extends Visitor {
             Declaration member) {
         String name = member.getName();
         if (name==null) {
-            return;
-        }
-        if (member instanceof Constructor) {
             return;
         }
         if (member instanceof Setter) {

@@ -413,7 +413,7 @@ TypeConstraints?
     <section id="parameters">
         <title>Parameters</title>
         
-        <para>A function, class, or constructor declaration may declare 
+        <para>A function, class, or callable constructor declaration may declare 
         <emphasis>parameters</emphasis>. A parameter is a value or function belonging to the 
         declaration it parameterizes. Parameters are distinguished from other values or 
         functions because they occur in a <emphasis>parameter list</emphasis>. A value or 
@@ -421,12 +421,13 @@ TypeConstraints?
         
         <itemizedlist>
             <listitem>
-                <para>declared inline in a parameter list of the function, class, or constructor, 
-                or</para>
+                <para>declared inline in a parameter list of the function, class, or 
+                callable constructor, or</para>
             </listitem>
             <listitem>
-                <para>declared normally, within the body of the class, function, or constructor,
-                but named in a parameter list of the class or function.</para>
+                <para>declared normally, within the body of the class, function, or 
+                callable constructor, but named in a parameter list of the class, function, 
+                or callable constructor.</para>
             </listitem>
         </itemizedlist>
         
@@ -448,9 +449,9 @@ TypeConstraints?
         
         <para>A parameter declaration may only occur in a parameter list, or directly, as
         defined by <xref linkend="blockstructure"/>, in the body of a class, function, or
-        constructor. A parameter declaration may not occur directly in the body of a getter 
-        or in a body of a control structure. Nor may a parameter declaration appear as a 
-        toplevel declaration in a compilation unit.</para>
+        callable constructor. A parameter declaration may not occur directly in the body of a 
+        getter, setter, or value constructor, nor in the body of a control structure. Nor may a 
+        parameter declaration appear as a toplevel declaration in a compilation unit.</para>
         
         <synopsis>ParameterDeclaration: (ValueParameter | CallableParameter | VariadicParameter) ";"</synopsis>
         
@@ -869,8 +870,8 @@ TypeConstraints?
         <section id="interfaceinheritance">
             <title>Interface inheritance</title>
             
-            <para>An interface may satisfy any number of other interfaces.<!--and may satisfy
-            a single class--></para>
+            <para>An interface may satisfy any number of other interfaces,<!--and may satisfy
+            a single class--> as defined in <xref linkend="satisfiedinterfaces"/>.</para>
         
             <programlisting>shared interface List&lt;Element&gt;
         satisfies Collection&lt;Element&gt; &amp; Correspondence&lt;Integer,Element&gt;
@@ -940,9 +941,10 @@ TypeConstraints?
         </section>
         
         <section id="interfaceswithcases">
-            <title>Interfaces with enumerated cases</title>
+            <title>Enumerated interfaces</title>
             
-            <para>An interface declaration may enumerate a list of cases of the interface.</para>
+            <para>An interface declaration may enumerate a list of cases of the interface, 
+            as defined in <xref linkend="cases"/>.</para>
             
             <programlisting>shared interface Node&lt;Element&gt; 
             of Root&lt;Element&gt; | Branch&lt;Element&gt; | Leaf&lt;Element&gt; { ... }</programlisting>
@@ -953,7 +955,7 @@ TypeConstraints?
             interface declaration may not list the same case twice.</para>
                     
             <para>If an interface has an <literal>of</literal> clause, then every interface 
-            or class which is a subtype of the interface must occurs as exactly one of the 
+            or class which is a subtype of the interface must occur as exactly one of the 
             enumerated cases of the interface.</para>
                     
         </section>
@@ -1099,7 +1101,7 @@ TypeConstraints?
 }</programlisting>
         
         <para>If a class does not specify an initializer parameter list, it must have
-        at least one constructor.</para>
+        at least one constructor, as defined below in <xref linkend="constructors"/>.</para>
         
         <section id="callabletypeofclass">
             <title>Callable type of a class</title>
@@ -1366,7 +1368,8 @@ TypeConstraints?
         <section id="classinheritance">
              <title>Class inheritance</title>
         
-            <para>A class may extend another class.</para>
+            <para>A class may extend another class, as defined in 
+            <xref linkend="extendedclass"/>.</para>
             
             <programlisting>shared class Customer(Name name, Organization? org = null) 
         extends Person(name, org) { 
@@ -1379,7 +1382,8 @@ TypeConstraints?
             <literal>ceylon.language</literal>.
             </para>
             
-            <para>A class may satisfy any number of interfaces.</para>
+            <para>A class may satisfy any number of interfaces, as defined in 
+            <xref linkend="satisfiedinterfaces"/>.</para>
     
             <programlisting>class Token() 
         extends Datetime()
@@ -1430,9 +1434,10 @@ TypeConstraints?
             -->
             
             <para>A subclass with an initializer parameter list must pass arguments to 
-            each superclass initialization parameter or constructor parameter in the 
-            <literal>extends</literal> clause. A subclass with no initializer parameter 
-            list may not pass arguments in the <literal>extends</literal> clause.</para>
+            each superclass initialization parameter or callable constructor parameter 
+            in the <literal>extends</literal> clause. A subclass with no initializer 
+            parameter list may not pass arguments in the <literal>extends</literal> 
+            clause.</para>
             
             <programlisting>shared class SpecialKey1()
         extends Key( SpecialLock() ) {
@@ -1742,9 +1747,47 @@ String escapedSearchString = sql.escape(searchString);</programlisting>
         </section>
         
         <section id="classeswithcases">
-            <title>Classes with enumerated cases</title>
+            <title>Enumerated classes</title>
             
-            <para>A class declaration may enumerate a list of cases of the class.</para>
+            <para>A class declaration may enumerate a list of cases of the class, as
+            defined in <xref linkend="cases"/>.</para>
+            
+            <itemizedlist>
+                <listitem>
+		            <para>For an <literal>abstract</literal> class, the cases may be 
+		            classes or toplevel anonymous classes. Each case must be a direct 
+		            subclass of the enumerated class. A case may itself be an 
+		            <literal>abstract</literal> class.</para>            
+                </listitem>
+                <listitem>
+                    <para>For a non-<literal>abstract</literal> toplevel class, the 
+                    cases must be value constructors of the class.</para>
+                </listitem>
+            </itemizedlist>
+            
+            <para>The cases listed in the <literal>of</literal> clause must exhaust
+            every means by which an instance of the class may be instantiated:</para>
+            
+             <itemizedlist>
+                <listitem>
+		            <para>if an <literal>abstract</literal> class has an 
+		            <literal>of</literal> clause, then every class that directly 
+		            extends the class must occur as exactly one of the enumerated 
+		            cases of the class listed in the <literal>of</literal> clause,
+		            or</para>
+                </listitem>
+                <listitem>
+		            <para>if a non-<literal>abstract</literal> class has an 
+		            <literal>of</literal> clause, then every non-partial constructor 
+		            of the class must occur as exactly one of the enumerated cases of 
+		            the class listed in the <literal>of</literal> clause.</para>
+                </listitem>
+            </itemizedlist>
+            
+            <!--para>Furthermore, if a class has an <literal>of</literal> clause, then 
+            the class must be a subtype of the interface <literal>Identifiable</literal> 
+            defined in <literal>ceylon.language</literal> unless it is the class
+            <literal>Null</literal> defined in <literal>ceylon.language</literal>.</para-->
             
             <programlisting>shared abstract class Boolean() 
         of true | false {}
@@ -1761,19 +1804,22 @@ shared class Leaf<Element>(String name, Element element)
 shared class Branch<Element>(String name, Node<Element> left, Node<Element> right) 
         extends Node<Element>(name) { ... }]]></programlisting>
             
-            <para>The cases may be classes or toplevel anonymous classes. A case may 
-            be an <literal>abstract</literal> class. Each case must be a direct 
-            subclass of the enumerated class. A class may not be a case of itself. A 
-            class declaration may not list the same case twice.</para>
-                        
-            <para>If a class has an <literal>of</literal> clause, then every class 
-            that directly extends the class must occur as exactly one of the enumerated 
-            cases of the class.</para>
+            <programlisting>shared class Status of enabled | disabled {
+    shared actual String string;
+    shared new enabled { string => "enabled"; }
+    shared new disabled { string => "disabled"; }
+}</programlisting>
             
-            <para>A non-<literal>abstract</literal> class may not have an 
-            <literal>of</literal> clause.</para>
+            <para>A non-<literal>abstract</literal> class with an initializer parameter 
+            list or a callable constructor may not specify an <literal>of</literal> 
+            clause.</para>
             
-            <comment><para>Note: in a future release of the language, we will introduce 
+            <para>A non-<literal>abstract</literal>, non-toplevel class may not specify 
+            an <literal>of</literal> clause.</para>
+            
+            <para>A class declaration may not list the same case twice.</para>
+            
+            <comment><para>Note: in a future release of the language, we may introduce 
             an abbreviated syntax like:</para>
             <programlisting>shared abstract class Boolean(shared actual String string) 
         of object true ("true") | 
@@ -1786,16 +1832,16 @@ shared class Branch<Element>(String name, Node<Element> left, Node<Element> righ
             <title>Class aliases</title>
             
             <para>A <emphasis>class alias</emphasis> is a class declaration which specifies 
-            a reference to a class or constructor of a class, followed by a positional 
-            argument list, as defined in <xref linkend="positionalarguments"/>.</para>
+            a reference to a class or callable constructor of a class, followed by a 
+            positional argument list, as defined in <xref linkend="positionalarguments"/>.</para>
             
             <synopsis>ClassSpecifier: "=>" (Extension | SuperclassExtension) PositionalArguments</synopsis>
             
-            <para>The specification of the class or class constructor is treated as a value 
-            expression, as in <xref linkend="extendedclass"/>. The type of this value 
-            expression must be a <emphasis>class type</emphasis>, that is, a reference
-            to a class with no type parameters or an instantiation of a generic class, and 
-            is called the <emphasis>aliased type</emphasis>.</para>
+            <para>The specification of the class or callable constructor is treated as a 
+            value expression, as in <xref linkend="extendedclass"/>. The type of this value 
+            expression must be a <emphasis>class type</emphasis>, that is, a reference to a 
+            class with no type parameters or an instantiation of a generic class, and is 
+            called the <emphasis>aliased type</emphasis>.</para>
             
             <para>A class alias simply assigns an alternative name to the aliased type. A 
             reference to the alias may occur anywhere a reference to a class may occur.</para>
@@ -2829,18 +2875,37 @@ print(greeting);</programlisting>
         
         <synopsis>ConstructorDeclaration: Annotations ConstructorHeader Block</synopsis>
         
-        <para>All constructor declarations specify the constructor name, if any, 
-        exactly one parameter list, and, optionally, an <literal>extends</literal> 
+        <para>The are two basic kinds of constructor:</para>
+        
+        <itemizedlist>
+            <listitem>
+                <para>A <emphasis>callable constructor</emphasis> declaration 
+                specifies the constructor name, if any, and exactly one parameter 
+                list.</para> 
+            </listitem>
+            <listitem>
+                <para>A <emphasis>value constructor</emphasis> declaration 
+                specifies just the constructor name.</para>
+            </listitem>
+        </itemizedlist>
+                
+        <para>Any constructor declaration may, optionally, have an <literal>extends</literal> 
         clause.</para>
         
-        <synopsis>ConstructorHeader: "new" TypeName? Parameters ExtendedType?</synopsis>
+        <para>A constructor name must be an initial lowercase identifier.</para>
+        
+        <synopsis>ConstructorHeader: ValueConstructorHeader | CallableConstructorHeader</synopsis>
+        
+        <synopsis>CallableConstructorHeader: "new" MemberName? Parameters ExtendedType?</synopsis>
+        <synopsis>ValueConstructorHeader: "new" MemberName ExtendedType?</synopsis>
         
         <para>If two constructors belong to the same class, then the constructors 
         must have distinct names. A class may have at most one constructor with no
         name.</para>
         
         <para>If a constructor has no name, then the constructor is called the 
-        <emphasis>default constructor</emphasis> of the class to which it belongs.</para>
+        <emphasis>default constructor</emphasis> of the class to which it belongs.
+        The default constructor is always a callable constructor.</para>
         
         <para>Every default constructor must be annotated <literal>shared</literal>.</para>
         
@@ -2848,28 +2913,36 @@ print(greeting);</programlisting>
         constructor and no named constructors is indistinguishable from a class with an
         initializer parameter list.</para></comment>
         
-        <para>A class with an initializer parameter list may not declare constructors.</para>
-        
-        <para>A member class annotated <literal>formal</literal>, <literal>default</literal>,
-        or <literal>actual</literal> may not declare constructors.</para>
-        
         <programlisting>shared class Point {
     shared Float x;
     shared Float y;
     
-    shared new Cartesian(Float x, Float y) {
+    shared new origin {
+        x = 0.0;
+        y = 0.0;
+    }
+    shared new cartesian(Float x, Float y) {
         this.x = x; 
         this.y = y;
     }
-    shared new Polar(Float r, Float theta) {
+    shared new polar(Float r, Float theta) {
         this.x = r * cos(theta);
         this.y = r * sin(theta);
     }
     shared new (Float x, Float y) 
-            extends Cartesian(x, y) {}
+            extends cartesian(x, y) {}
     
     string => "(``x``, ``y``)";
 }</programlisting>
+        
+        <para>A class with an initializer parameter list may not declare constructors.</para>
+        
+        <para>A generic class may not declare value constructors.</para>
+        
+        <para>A class nested directly inside an interface may not declare value constructors.</para>
+        
+        <para>A member class annotated <literal>formal</literal>, <literal>default</literal>,
+        or <literal>actual</literal> may not declare constructors.</para>
         
         <comment><para>Note: in a future release of the language, we might relax this 
         restriction, and simply require that every <literal>actual</literal> class 
@@ -2882,12 +2955,12 @@ print(greeting);</programlisting>
         <section id="callabletypeofaconstructor">
             <title>Callable type of a constructor</title>
             
-            <para>The <emphasis>callable type</emphasis> of a constructor captures 
-            the type of the class, and parameter types of the constructor. The
-            callable type is <literal>T(*P)</literal>, where <literal>T</literal> 
-            is the applied type formed by the class with its own type parameters 
-            as type arguments, and <literal>P</literal> is the type of the parameter 
-            list of the constructor.</para>
+            <para>For a callable constructor, the <emphasis>callable type</emphasis> 
+            of the constructor captures the type of the class, and parameter types of 
+            the constructor. The callable type is <literal>T(*P)</literal>, where 
+            <literal>T</literal> is the applied type formed by the class with its own 
+            type parameters as type arguments, and <literal>P</literal> is the type of 
+            the parameter list of the constructor.</para>
             
             <para>A constructor of an <literal>abstract</literal> class is not 
             callable, except from the <literal>extends</literal> clause of a subclass, 
@@ -2897,17 +2970,22 @@ print(greeting);</programlisting>
             <literal>extends</literal> clause of another constructor of the same
             class.</para>
             
+            <para>The type of a value constructor is simply <literal>T</literal>,
+            where <literal>T</literal> is the class to which it belongs.</para>
+            
         </section>
         
         <section id="partialconstructors">
             <title>Partial constructors</title>
             
-            <para>A constructor annotated <literal>abstract</literal> is called a
-            <emphasis>partial constructor</emphasis>.</para>
+            <para>A callable constructor annotated <literal>abstract</literal> is 
+            called a <emphasis>partial constructor</emphasis>.</para>
             
             <para>A partial constructor may not be annotated <literal>shared</literal>.</para>
             
             <para>A default constructor may not be annotated <literal>abstract</literal>.</para>
+            
+            <para>A value constructor may not be annotated <literal>abstract</literal>.</para>
             
         </section>
         
@@ -2916,17 +2994,20 @@ print(greeting);</programlisting>
             
             <para>Every constructor of any class which does not directly extend
             <literal>Basic</literal> defined in <literal>ceylon.language</literal>
-            must explicitly delegate to either:</para>
+            must explicitly delegate, as defined in <xref linkend="extendedclass"/>, 
+            to either:</para>
             
             <itemizedlist>
                 <listitem>
-                    <para>a different constructor of the same class, specifying 
-                    arguments for the parameters of the constructor, or,</para>
+                    <para>a different callable constructor of the same class, 
+                    specifying arguments for the parameters of the constructor, 
+                    or,</para>
                 </listitem>
                 <listitem>
-                    <para>a constructor of its immediate superclass, specifying
-                    arguments for the parameters of the superclass constructor, 
-                    if the superclass declares constructors, or, otherwise</para>
+                    <para>a callable constructor of its immediate superclass, 
+                    specifying arguments for the parameters of the superclass 
+                    constructor, if the superclass declares constructors, or, 
+                    otherwise</para>
                 </listitem>
                 <listitem>
                     <para>the initializer of its immediate superclass, specifying

@@ -81,9 +81,9 @@ void testCallableMembers() {
 
 void testStaticRefTypeInference() {
     @type:"XXXX<Integer>" value xx = XXXX(1);
-    @type:"XXXX<Integer>" value x = XXXX.YYYY(1);
+    @type:"XXXX<Integer>" value x = XXXX.yyyy(1);
     
-    @type:"ZZZZ<String>.XXXX<Integer>" value z = ZZZZ("").XXXX.YYYY(1,"");
+    @type:"ZZZZ<String>.XXXX<Integer>" value z = ZZZZ("").XXXX.yyyy(1,"");
     
     @type:"WWWW<Integer>.XXXX<Float>" value uv = WWWW.XXXX<Float>(WWWW<Integer>())(1, 0.0);
     
@@ -92,13 +92,13 @@ void testStaticRefTypeInference() {
 
 class ZZZZ<U>(U u) {
     shared class XXXX<T> {
-        shared new YYYY(T t, U u) {}
+        shared new yyyy(T t, U u) {}
     }
 }
 
 class XXXX<T> {
     shared new (T t) {}
-    shared new YYYY(T t) {}
+    shared new yyyy(T t) {}
 }
 
 
@@ -128,4 +128,33 @@ void testMissingTypeArgs() {
     @error:"missing argument to required parameter" value noand = Integer.and();
     @error:"does not accept type arguments" value notand = Integer<>.and;
     @error:"does not accept type arguments" value nottaand = Integer.and<>;
+}
+
+
+class OuterClass() {
+    shared class InnerClass {
+        shared String name => "Gavin";
+        shared void reset() {}
+        shared new instance {}
+        shared new create() {}
+    }
+}
+
+void testOuterInner() {
+    @type:"OuterClass.InnerClass(OuterClass)"
+    value i = OuterClass.InnerClass.instance;
+    @type:"OuterClass.InnerClass()(OuterClass)" 
+    value c = OuterClass.InnerClass.create;
+    @type:"String(OuterClass.InnerClass)" 
+    value n = OuterClass.InnerClass.name;
+    @type:"Anything()(OuterClass.InnerClass)" 
+    value r = OuterClass.InnerClass.reset;
+    @type:"Attribute<OuterClass,OuterClass.InnerClass,Nothing>"
+    value meta1 = `OuterClass.InnerClass.instance`;
+    @type:"MemberClassConstructor<OuterClass,OuterClass.InnerClass,Empty>"
+    value meta2 = `OuterClass.InnerClass.create`;
+    @type:"ValueDeclaration"
+    value meta3 = `value OuterClass.InnerClass.instance`;
+    @type:"ConstructorDeclaration"
+    value meta4 = `new OuterClass.InnerClass.create`;
 }

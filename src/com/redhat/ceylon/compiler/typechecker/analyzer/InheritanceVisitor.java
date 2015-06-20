@@ -37,6 +37,7 @@ import com.redhat.ceylon.model.typechecker.model.TypeParameter;
 import com.redhat.ceylon.model.typechecker.model.TypedDeclaration;
 import com.redhat.ceylon.model.typechecker.model.Unit;
 import com.redhat.ceylon.model.typechecker.model.UnknownType;
+import com.redhat.ceylon.model.typechecker.model.Value;
 
 /**
  * Enforces a number of rules surrounding inheritance.
@@ -308,7 +309,8 @@ public class InheritanceVisitor extends Visitor {
         super.visit(that);
         
         TypeDeclaration td = 
-                (TypeDeclaration) that.getScope();
+                (TypeDeclaration) 
+                    that.getScope();
         if (!td.isAlias()) {
             Tree.SimpleType et = that.getType();
             if (et!=null) {
@@ -316,7 +318,8 @@ public class InheritanceVisitor extends Visitor {
                         that.getInvocationExpression();
                 Class clazz = (Class) td;
                 boolean hasConstructors = 
-                        clazz.hasConstructors();
+                        clazz.hasConstructors() || 
+                        clazz.hasEnumerated();
                 boolean anonymous = clazz.isAnonymous();
                 if (ie==null) { 
                     if (!hasConstructors || anonymous) {
@@ -401,6 +404,7 @@ public class InheritanceVisitor extends Visitor {
             Type type = t.getTypeModel();
             if (!isTypeUnknown(type)) {
                 type = type.resolveAliases();
+                TypeDeclaration dec = type.getDeclaration();
                 if (td instanceof ClassOrInterface &&
                         !inLanguageModule(unit)) {
                     if (unit.isCallableType(type)) {
@@ -408,21 +412,21 @@ public class InheritanceVisitor extends Visitor {
                     }
                     TypeDeclaration cad = 
                             unit.getConstrainedAnnotationDeclaration();
-                    if (type.getDeclaration().equals(cad)) {
+                    if (dec.equals(cad)) {
                         t.addError("directly satisfies 'ConstrainedAnnotation'");
                     }
                 }
-                if (!set.add(type.getDeclaration())) {
+                if (!set.add(dec)) {
                     //this error is not really truly necessary
                     //but the spec says it is an error, and
                     //the backend doesn't like it
                     t.addError("duplicate satisfied type: '" + 
-                            type.getDeclaration().getName(unit) +
-                            "' of '" + td.getName() + "'");
+                            dec.getName(unit) + "' of '" + 
+                            td.getName() + "'");
                 }
                 if (td instanceof ClassOrInterface) {
                     TypeDeclaration std = 
-                            type.getDeclaration();
+                            dec;
                     if (std.isSealed() && 
                             !inSameModule(std, unit)) {
                         String moduleName = 
@@ -494,27 +498,58 @@ public class InheritanceVisitor extends Visitor {
                     getTypedDeclaration(bme.getScope(), 
                             name(bme.getIdentifier()), 
                             null, false, unit);
-            Type type = value.getType();
-            if (value!=null && !valueSet.add(value)) {
-                //this error is not really truly necessary
-                bme.addError("duplicate case: '" + 
-                        value.getName(unit) + 
-                        "' of '" + td.getName() + "'");
-            }
-            if (value!=null && type!=null && 
-                    !type.getDeclaration()
-                        .isAnonymous()) {
-                bme.addError("case must be a toplevel anonymous class: '" + 
-                        value.getName(unit) + "' is not an anonymous class");
-            }
-            else if (value!=null && !value.isToplevel()) {
-                bme.addError("case must be a toplevel anonymous class: '" + 
-                        value.getName(unit) + "' is not toplevel");
-            }
-            if (type!=null) {
-                if (checkDirectSubtype(td, bme, type)) {
-                    checkAssignable(type, td.getType(), bme, 
-                            getCaseTypeExplanation(td, type));
+            if (value!=null) {
+                if (value!=null && !valueSet.add(value)) {
+                    //this error is not really truly necessary
+                    bme.addError("duplicate case: '" + 
+                            value.getName(unit) + 
+                            "' of '" + td.getName() + "'");
+                }
+                Type type = value.getType();
+                if (type!=null) {
+                    TypeDeclaration caseDec = 
+                            type.getDeclaration();
+                    if (caseDec instanceof Constructor) {
+                        Scope scope = caseDec.getContainer();
+                        if (scope instanceof Class) {
+                            //enumerated singleton constructors
+                            Constructor cons = 
+                                    (Constructor) caseDec;
+                            Class c = (Class) scope;
+                            if (!c.isToplevel()) {
+                                bme.addError("case must be a value constructor of a toplevel class: '" + 
+                                        c.getName(unit) + 
+                                        "' is not toplevel");
+                            }
+                            else if (!cons.getParameterLists().isEmpty()) {
+                                bme.addError("case must be a value constructor of a toplevel class: '" + 
+                                        cons.getName(unit) + 
+                                        "' is not a value constructor");
+                            }
+                            /*else if (!c.inherits(unit.getIdentifiableDeclaration())) {
+                                bme.addError("case must be a value constructor of an identifiable class: '" + 
+                                        c.getName(unit) + 
+                                        "' is not a subtype of 'Identifiable'");
+                            }*/
+                        }
+                    }
+                    else {
+                        //enumerated anonymous subclasses
+                        if (!caseDec.isObjectClass()) {
+                            bme.addError("case must be a toplevel anonymous class: '" + 
+                                    value.getName(unit) + 
+                                    "' is not an anonymous class");
+                        }
+                        else if (!value.isToplevel()) {
+                            bme.addError("case must be a toplevel anonymous class: '" + 
+                                    value.getName(unit) + 
+                                    "' is not toplevel");
+                        }
+                    }
+                    if (checkDirectSubtype(td, bme, type)) {
+                        checkAssignable(type, td.getType(), bme, 
+                                getCaseTypeExplanation(td, type));
+                    }
                 }
             }
         }
@@ -855,4 +890,43 @@ public class InheritanceVisitor extends Visitor {
             }
         }
     }
+    
+    @Override
+    public void visit(Tree.Enumerated that) {
+        super.visit(that);
+        Value v = that.getDeclarationModel();
+        Scope container = v.getContainer();
+        if (container instanceof Class) {
+            Class cl = (Class) container;
+            List<TypedDeclaration> caseValues = 
+                    cl.getCaseValues();
+            if (caseValues!=null 
+                    && !caseValues.contains(v) && 
+                    !cl.isAbstract()) {
+                that.addError("value constructor does not occur in of clause of non-abstract enumerated class: '" +
+                        v.getName() + 
+                        "' is not listed in the of clause of '" + 
+                        cl.getName() + "'");
+            }
+        }
+    }
+    
+    @Override
+    public void visit(Tree.Constructor that) {
+        super.visit(that);
+        Constructor c = that.getConstructor();
+        Scope container = 
+                c.getContainer();
+        if (container instanceof Class) {
+            Class cl = (Class) container;
+            List<TypedDeclaration> caseValues = 
+                    cl.getCaseValues();
+            if (caseValues!=null && 
+                    !c.isAbstract() &&
+                    !cl.isAbstract()) {
+                that.addError("non-abstract enumerated class may not have non-partial callable constructor");
+            }
+        }
+    }
+
 }
