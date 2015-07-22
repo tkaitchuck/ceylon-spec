@@ -57,7 +57,7 @@ class OK() extends Abstract() {
     }
 }
 
-abstract class AlsoAbstract() {
+mutable abstract class AlsoAbstract() {
     shared formal variable String x;
     shared default String y = "";
 }
@@ -205,7 +205,7 @@ interface MySubint satisfies MyInt {
     @error f = print; //TODO: unnecessary error * revisit this?
 }
 
-abstract class SuperWithVariable() {
+mutable abstract class SuperWithVariable() {
     shared variable Integer count1 = 0;
     shared default variable Integer count2 = 0;
     shared formal variable Integer count3;
@@ -225,7 +225,7 @@ abstract class WithInnerSubClass() {
     }
 }
 
-abstract class WithInnerSubClass2() {
+mutable abstract class WithInnerSubClass2() {
     shared variable default String name="";
     class SubClass() extends WithInnerSubClass2() {
         @error name = "Gavin";
@@ -233,7 +233,7 @@ abstract class WithInnerSubClass2() {
     }
 }
 
-abstract class WithInnerSubClass3() {
+mutable abstract class WithInnerSubClass3() {
     shared variable formal String name;
     class SubClass() extends WithInnerSubClass2() {
         @error name = "Gavin";

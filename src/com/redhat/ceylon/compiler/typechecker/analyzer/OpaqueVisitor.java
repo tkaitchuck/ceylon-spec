@@ -1,225 +1,145 @@
 package com.redhat.ceylon.compiler.typechecker.analyzer;
 
-import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.checkAssignable;
-import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.name;
-
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-import com.redhat.ceylon.compiler.typechecker.context.TypecheckerUnit;
-import com.redhat.ceylon.compiler.typechecker.tree.Node;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree;
-import com.redhat.ceylon.compiler.typechecker.tree.CustomTree.IsCase;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.AnyAttribute;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.AttributeDeclaration;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.ClassBody;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.Parameter;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.ParameterList;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.ValueParameterDeclaration;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.Variable;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.Identifier;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.SimpleType;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.TypeArgumentList;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.TypeParameterDeclaration;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.TypeParameterList;
 import com.redhat.ceylon.compiler.typechecker.tree.Visitor;
-import com.redhat.ceylon.model.typechecker.model.Class;
-import com.redhat.ceylon.model.typechecker.model.Constructor;
-import com.redhat.ceylon.model.typechecker.model.Interface;
-import com.redhat.ceylon.model.typechecker.model.Type;
-import com.redhat.ceylon.model.typechecker.model.TypedDeclaration;
-import com.redhat.ceylon.model.typechecker.model.Value;
+import com.redhat.ceylon.model.typechecker.model.TypeDeclaration;
+import com.redhat.ceylon.model.typechecker.model.TypeParameter;
 
 /**
- * This checks to make sure that objects that are locally mutable are properly
- * annotated and their methods are safe. Safe in this context mean that all of
- * their methods only receive immutable objects and they have no blocking
- * methods.
+ * This checks to make sure that objects that are supposed to be opaque 
+ * are never looked at. This is done by:
+ * 1. Making sure that an opaque generic does not satisfy any other types
+ * 2. Making sure that no arguments that are generically typed to the type are passed.
+ * 3. Disabling is checks or switching on the type of a opaque generic.
  * 
  * @author Tom Kaitchuck
  */
 public class OpaqueVisitor extends Visitor {
-
-	private class CurrentClass {
-		private final String className;
-		private final boolean isMutable;
-		private boolean isInParameterList;
-
-		CurrentClass(Class c) {
-			className = c.getName();
-			isMutable = c.isMutable();
-			isInParameterList = false;
-		}
-
-		CurrentClass(String className, boolean isMutable) {
-			this.className = className;
-			this.isMutable = isMutable;
-			this.isInParameterList = false;
-		}
-		
-		boolean isInClass() {
-			return className != null;
-		}
-
-		boolean isMutable() {
-			return isMutable;
-		}
-
-		public boolean isInParameterList() {
-			return isInParameterList;
-		}
-
-		public void setInParameterList(boolean isInParameterList) {
-			this.isInParameterList = isInParameterList;
-		}
-	}
-
-	private CurrentClass state = new CurrentClass(null, false);
-	private final Type immutableType;
-
-	public OpaqueVisitor(TypecheckerUnit unit) {
-		immutableType = unit.getImmutableMaskDeclaration().getType();
-	}
-
-	CurrentClass beginObjectScope(CurrentClass newClass) {
-		CurrentClass origional = state;
-		state = newClass;
+	
+	List<String> opaqueTypes = Collections.emptyList();
+	
+	List<String> beginNewScope(List<String> types) {
+		List<String> origional = opaqueTypes;
+		opaqueTypes = types;
 		return origional;
 	}
 
-	void endObjectScope(CurrentClass origional) {
-		state = origional;
+	void endNewScope(List<String> types) {
+		opaqueTypes = types;
 	}
 	
-	@Override
-	public void visit(ParameterList that) {
-		boolean inParameterList = state.isInParameterList;
-		if (state.isInClass()) {
-			state.setInParameterList(true);
+	public void visit(Tree.TypeParameterDeclaration that) {
+		TypeParameter declarationModel = that.getDeclarationModel();
+		if (declarationModel.isOpaque() && declarationModel.isConstrained()) {
+			that.addError("Opaque type " + declarationModel.getName()
+					+ " may not be constrained.");
 		}
 		super.visit(that);
-		state.setInParameterList(inParameterList);
 	}
+
+//	@Override
+//	public void visit(Tree.ParameterDeclaration that) {
+//		TypedDeclaration typedDeclaration = that.getTypedDeclaration();
+//		Type type = typedDeclaration.getType().getTypeModel();
+//		List<TypeParameter> typeParameters = type.getDeclaration().getTypeParameters();
+//		for (TypeParameter typeParam : typeParameters) {
+//			if (typeParam.isOpaque()) {
+//				that.addError("Parameters may not have themselves constrained types. "+that);
+//			}
+//		}
+//		super.visit(that);
+//	}
 	
 	@Override
-	public void visit(AnyAttribute that) {
-//		if ("BadMutableParClass".equals(state.className)) {
-//			System.out.println();
-//			System.out.println(that.toString());
-//			System.out.println(state.isMutable);
-//			System.out.println(that.getDeclarationModel());
-//			System.out.println(that.getDeclarationModel().isVariable());
-//		}
-		handelVariable(that.getDeclarationModel(), that);
-		CurrentClass orig = beginObjectScope(new CurrentClass(null, false));
-		super.visit(that);
-		endObjectScope(orig);
-	}
-
-	@Override
-	public void visit(Variable that) {
-		handelVariable(that.getDeclarationModel(), that);
-		CurrentClass orig = beginObjectScope(new CurrentClass(null, false));
-		super.visit(that);
-		endObjectScope(orig);
-	}
-
-	void handelVariable(TypedDeclaration declarationModel, Node that) {
-		if (state.isInClass()) {
-			if (state.isMutable()) {
-				if (declarationModel.isVariable()) {
-					Type type = declarationModel.getType();
-					if (type != null && !type.isSubtypeOf(immutableType)) {
-						if(declarationModel.isShared()) {
-							that.addError("Shared variable values on mutable annotated class '"
-								+ state.className
-								+ "' must be immutable. Found: " + type);
-						}
-						if (state.isInParameterList()) {
-							that.addError("Parameters to a mutable annotated class '"
-									+ state.className
-									+ "' must be immutable. Found: " + type);
+	public void visit(Tree.BaseType that) {
+		if (opaqueTypes.isEmpty()) {
+			return;
+		}
+		TypeArgumentList typeArgumentList = that.getTypeArgumentList();
+		if (typeArgumentList == null) {
+			return;
+		}
+		List<Tree.Type> typeArguments = typeArgumentList.getTypes();
+		List<TypeParameter> typeParameters = that.getDeclarationModel()
+				.getTypeParameters();
+		for (int i = 0; i < typeParameters.size() && i < typeArguments.size(); i++) {
+			Tree.Type arg = typeArguments.get(i);
+			if (arg instanceof Tree.SimpleType) {
+				TypeDeclaration declarationModel = ((Tree.SimpleType) arg)
+						.getDeclarationModel();
+				if (declarationModel instanceof TypeParameter) {
+					if (((TypeParameter) declarationModel).isOpaque()) {
+						if (!typeParameters.get(i).isOpaque()) {
+							that.addError("Opaque type: "
+									+ declarationModel.getName()
+									+ " may not be used in a non-opaque way.");
 						}
 					}
-				}
-			} else {
-				if (declarationModel.isVariable()
-						&& !declarationModel.isNative()) {
-					that.addError("Member is variable but class is not annotated 'mutable' "
-							+ state.className);
 				}
 			}
 		}
 	}
-
-	@Override
-	public void visit(Tree.AnyInterface that) {
-		CurrentClass previous = beginObjectScope(new CurrentClass(null, false));
-		super.visit(that);
-		endObjectScope(previous);
-	}
-
+	
 	@Override
 	public void visit(Tree.AnyClass that) {
-		Class declarationModel = that.getDeclarationModel();
-		if ("BadMutableParClass".equals(that.getDeclarationModel().getName())) {
-			System.out.println();
-			System.out.println(that.toString());
-			System.out.println(state.isMutable);
-			System.out.println(that.getDeclarationModel());
-		}
-		CurrentClass previous = beginObjectScope(new CurrentClass(
-				declarationModel));
-		super.visit(that);
-		endObjectScope(previous);
-	}
-
-	@Override
-	public void visit(Tree.ObjectDefinition that) {
-		CurrentClass previous = beginObjectScope(new CurrentClass(
-				that.getAnonymousClass()));
-		super.visit(that);
-		endObjectScope(previous);
-	}
-
-	@Override
-	public void visit(Tree.ObjectExpression that) {
-		Class declarationModel = that.getAnonymousClass();
-		CurrentClass previous = beginObjectScope(new CurrentClass(
-				declarationModel));
-		super.visit(that);
-		endObjectScope(previous);
-	}
-
-	@Override
-	public void visit(Tree.Constructor that) {
-		CurrentClass previous = beginObjectScope(new CurrentClass(null, false));
-		super.visit(that);
-		endObjectScope(previous);
-	}
-
-	@Override
-	public void visit(Tree.MemberOrTypeExpression that) {
-		CurrentClass previous = beginObjectScope(new CurrentClass(null, false));
-		super.visit(that);
-		endObjectScope(previous);
-	}
-
-	@Override
-	public void visit(Tree.AnyMethod that) {
-		CurrentClass orig = beginObjectScope(new CurrentClass(null, false));
-		List<ParameterList> parameterLists = that.getParameterLists();
-		if (orig != null && orig.isMutable()
-				&& that.getDeclarationModel().isBlocking()) {
-			that.addError("Blocking methods are not allowed on mutable annotated classes.");
-		}
-		super.visit(that);
-		if (orig != null && orig.isMutable()) {
-			for (ParameterList list : parameterLists) {
-				for (Parameter p : list.getParameters()) {
-					Type type = p.getParameterModel().getModel().getType();
-					if (!type.isSubtypeOf(immutableType)) {
-						that.addError("Method parameters to mutable annotated class '"
-								+ orig.className
-								+ "' must be immutable. Found: " + type);
-					}
+//		if (that.getIdentifier().getText().equals("BadGenericParameterClass")) {			
+//			System.out.println(that);
+//		}
+		List<String> opaqueParamaters = new ArrayList<>();
+		TypeParameterList typeParameterList = that.getTypeParameterList();
+		if (typeParameterList != null) {
+			for (TypeParameterDeclaration param : typeParameterList.getTypeParameterDeclarations()) {
+				if (param.getDeclarationModel().isOpaque()) {
+					opaqueParamaters.add(param.getIdentifier().getText());
 				}
 			}
 		}
-		endObjectScope(orig);
+		List<String> origional = beginNewScope(opaqueParamaters);
+		super.visit(that);
+		endNewScope(origional);
+//		TypeConstraintList typeConstraints = that.getTypeConstraintList();
+//		if (typeConstraints != null) {
+//			for (TypeConstraint tc : typeConstraints.getTypeConstraints()) {
+//				if (opaqueParamaters.contains(tc.getIdentifier())) {
+//					that.addError("Opaque types may not be constrained. "+ tc.getIdentifier().getText());
+//				}
+//			}
+//		}
+//		ExtendedType et = that.getExtendedType();
+//		if (et != null) {
+//			SimpleType type = et.getType();
+//			List<Tree.Type> typeArguments = type.getTypeArgumentList().getTypes();
+//			List<Type> typeModels = type.getTypeArgumentList().getTypeModels();
+//			for (Type t : typeModels) {
+//				t.gett
+//			}
+//			TypeDeclaration td = type.getDeclarationModel();
+//			if (td != null) {
+//				for (TypeParameter parentParam : td.getTypeParameters()) {
+//					if (parentParam.isOpaque()) {
+//						System.out.println(type);
+//						that.addError("Types that have opaque parameters may not be extended");
+//						break;
+//					}
+//				}
+//			}
+//		}
+//		SatisfiedTypes satisfiedTypes = that.getSatisfiedTypes();
+//		for (StaticType st : satisfiedTypes.getTypes()) {
+//			if (st instanceof Tree.SimpleType) {
+//				List<com.redhat.ceylon.compiler.typechecker.tree.Tree.Type> types = ((Tree.SimpleType)st).getTypeArgumentList().getTypes();
+//				types.get(0).get;
+//			}
+//		}
 	}
+	
 }

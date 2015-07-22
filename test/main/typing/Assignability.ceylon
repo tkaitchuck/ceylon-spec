@@ -86,55 +86,56 @@ class Assignability() {
     X x4;
     @error x4 = Y();
     
-    variable X var = X(); 
-    
-    X attx { return var; }
-    assign attx { var = attx; }
-    
-    Y atty { @error return var; }
-    assign atty { @error var = atty; }
-    
-    X methx { return var; }
-    Y methy { @error return var; }
-    
-    void methv() { @error return var; }
-    
-    void methv2() {
-        if ("Hello"=="Goodbye") {
-            @error return var;
+    mutable class Variance() {
+        variable X var = X(); 
+        
+        X attx { return var; }
+        assign attx { var = attx; }
+        
+        Y atty { @error return var; }
+        assign atty { @error var = atty; }
+        
+        X methx { return var; }
+        Y methy { @error return var; }
+        
+        void methv() { @error return var; }
+        
+        void methv2() {
+            if ("Hello"=="Goodbye") {
+                @error return var;
+            }
         }
-    }
-    
-    X methx2 {
-        if ("Hello">"Goodbye") {
-            return var;
+        
+        X methx2 {
+            if ("Hello">"Goodbye") {
+                return var;
+            }
+            else {
+                return X();
+            }
         }
-        else {
+        
+        Y methy2 {
+            if ("Hello"<"Goodbye") {
+                @error return var;
+            }
+            return Y();
+        }
+        
+        X outerMethod() {
+            Y innerMethod() {
+                return Y();
+            }
+            return X();
+        }
+        
+        X outerAtt {
+            Y innerAtt {
+                return Y();
+            }
             return X();
         }
     }
-    
-    Y methy2 {
-        if ("Hello"<"Goodbye") {
-            @error return var;
-        }
-        return Y();
-    }
-    
-    X outerMethod() {
-        Y innerMethod() {
-            return Y();
-        }
-        return X();
-    }
-    
-    X outerAtt {
-        Y innerAtt {
-            return Y();
-        }
-        return X();
-    }
-        
     void hello(String greeting = "Hello", String name = "World") {}
     
     hello("Hi", "Gavin");

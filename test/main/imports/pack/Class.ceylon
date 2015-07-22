@@ -1,4 +1,4 @@
-shared class Class(name) 
+mutable shared class Class(name) 
         satisfies Interface {
     shared String name;
     shared variable Integer count = 0;

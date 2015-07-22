@@ -935,6 +935,7 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
             String v = tv.getText();
             p.setCovariant("out".equals(v));
             p.setContravariant("in".equals(v));
+            p.setOpaque("opaque".equals(v));
         }
         that.setDeclarationModel(p);
         visitDeclaration(that, p);
@@ -1836,7 +1837,9 @@ public abstract class DeclarationVisitor extends Visitor implements NaturalVisit
             if (model instanceof Class) {
                 ((Class) model).setMutable(true);
             }
-            else {
+            else if (that instanceof Tree.ObjectDefinition) {
+            	((Tree.ObjectDefinition) that).getAnonymousClass().setMutable(true);
+            } else {
                 that.addError("declaration is not a class, and may not be annotated mutable" );
             }
         }

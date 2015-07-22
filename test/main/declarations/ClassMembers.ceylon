@@ -1,4 +1,4 @@
-abstract class Classes() {
+mutable abstract class Classes() {
     
     variable Integer count = 0;
     
@@ -37,7 +37,7 @@ abstract class Classes() {
         shared formal Integer times;
     }
     
-    class MemberClass() {
+    mutable class MemberClass() {
         shared String goodbye = upper("goodbye");
         shared variable Integer times = 1;
     }

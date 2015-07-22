@@ -17,14 +17,14 @@ class WithActual() extends WithActualFormal() {
 @error class WithoutActual() extends WithActualFormal() {}
 
 
-abstract class Super2() {
+mutable abstract class Super2() {
     shared default Integer defaultGetterSetter {
         return 2;
     } 
     assign defaultGetterSetter {}
 }
 
-abstract class Super1() extends Super2() {
+mutable abstract class Super1() extends Super2() {
 	 // we make a default attr formal
     shared variable actual formal Integer defaultGetterSetter;
 }

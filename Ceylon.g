@@ -1371,6 +1371,8 @@ variance returns [TypeVariance typeVariance]
       { $typeVariance = new TypeVariance($IN_OP); }
     | OUT
       { $typeVariance = new TypeVariance($OUT); }
+    | OPAQUE
+      { $typeVariance = new TypeVariance($OPAQUE); }
     ;
     
 typeConstraint returns [TypeConstraint typeConstraint]
@@ -4720,6 +4722,10 @@ OBJECT_DEFINITION
 
 CASE_TYPES
     :   'of'
+    ;
+
+OPAQUE
+    :   'opaque'
     ;
 
 OUT

@@ -26,6 +26,7 @@ import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isTypeUnknown;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.notOverloaded;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.union;
 import static com.redhat.ceylon.model.typechecker.model.SiteVariance.IN;
+import static com.redhat.ceylon.model.typechecker.model.SiteVariance.OPAQUE;
 import static com.redhat.ceylon.model.typechecker.model.SiteVariance.OUT;
 import static java.lang.Integer.parseInt;
 
@@ -1125,6 +1126,9 @@ public class TypeVisitor extends Visitor {
                         }
                         else if (var.equals("in")) {
                             pt.setVariance(p, IN);
+                        }
+                        else if (var.equals("opaque")) {
+                            pt.setVariance(p, OPAQUE);
                         }
                         if (!p.isInvariant()) {
                             //Type doesn't yet know

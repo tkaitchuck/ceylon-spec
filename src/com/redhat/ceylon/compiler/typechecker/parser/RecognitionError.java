@@ -111,6 +111,7 @@ public abstract class RecognitionError implements Message {
 		tokens.put("NOT_EQUAL_OP", "'!=' operator");
 		tokens.put("NOT_OP", "'!' operator");
 		tokens.put("OBJECT_DEFINITION", "'object' keyword");
+		tokens.put("OPAQUE", "'opaque' keyword");
 		tokens.put("OR_ASSIGN_OP", "'||=' operator");
 		tokens.put("OR_OP", "'||' operator");
 		tokens.put("OUT", "'out' keyword");

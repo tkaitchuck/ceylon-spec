@@ -6,7 +6,7 @@ class Capture() {
     
     void use(Object o) {}
     
-    class X() {}
+    class X() satisfies Immutable {}
     
     void methodWithVariable() {
         @captured variable X x = X();
@@ -80,10 +80,10 @@ class Capture() {
         return x;
     }
     
-    class ClassWithVariable() {
+    mutable class ClassWithVariable() {
         @captured variable X x = X();
         @uncaptured variable X y = X();
-        @captured shared variable X z = X();
+        @captured shared X z = X();
         void innerMethod() {
             use(x);
         }
@@ -100,7 +100,7 @@ class Capture() {
         }
     }
     
-    class ClassWithParameter(@captured X x) {
+    mutable class ClassWithParameter(@captured X x) {
         void innerMethod() {
             use(x);
         }
@@ -219,7 +219,7 @@ class Capture() {
         }
     }
     
-    class QualifiedAttributeAccess(){
+    mutable class QualifiedAttributeAccess(){
         @captured Boolean b = true;
         @captured variable Boolean b2 = true;
         @captured QualifiedAttributeAccess q = QualifiedAttributeAccess();

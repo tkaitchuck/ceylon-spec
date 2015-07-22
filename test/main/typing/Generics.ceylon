@@ -150,16 +150,7 @@ class Generics() {
         shared Z methodWithNonvariant(Z z) { return z; }
         shared Z attributeWithNonvariant;
         attributeWithNonvariant = nothing;
-        shared variable Z variableAtt = z;
-        @error shared variable X badVariableAtt = x;
-        @error shared variable Y badVariableAtt2 = y;
-        shared Z goodGetter { return z; }
-        assign goodGetter { }
-        @error shared X badGetter { return x; }
-        assign badGetter { }
-        @error shared Y badGetter2 { return y; }
-        assign badGetter2 { }
-        
+
         class NestedClass() {
             shared X x;
             @error shared Y y;
@@ -175,6 +166,22 @@ class Generics() {
         shared void badGenericMethod1<D>(D d) @error given D satisfies X {}
         shared void badGenericMethod5<D>(D d) @error given D satisfies Producer<X> {}
         shared void badGenericMethod6<D>(D d) @error given D satisfies Consumer<Y> {}
+    }
+    
+    mutable class VariableVariances<out X, in Y, Z>(X x, Y y, Z z) 
+            given X satisfies Immutable
+            given Y satisfies Immutable 
+    		given Z satisfies Immutable {
+        @error shared variable X badVariableAtt = x;
+        @error shared variable Y badVariableAtt2 = y;
+        shared variable Z variableAtt = z;
+        
+        shared Z goodGetter { return z; }
+        assign goodGetter { }
+        @error shared X badGetter { return x; }
+        assign badGetter { }
+        @error shared Y badGetter2 { return y; }
+        assign badGetter2 { }
     }
     
     class Bar() {

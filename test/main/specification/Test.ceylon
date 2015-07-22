@@ -21,7 +21,7 @@ class Test() {
     }
 }
 
-abstract class WithFormals() {
+mutable abstract class WithFormals() {
     shared formal String name;
     @error name = "Ceylon";
     shared formal Integer count;
@@ -30,7 +30,7 @@ abstract class WithFormals() {
     @error print(price=0.0);
 }
 
-abstract class CcCc() {
+mutable abstract class CcCc() {
     shared formal variable String name;
     @error this.name = "";
     @error print(this.name = "");

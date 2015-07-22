@@ -22,6 +22,7 @@ import com.redhat.ceylon.compiler.typechecker.analyzer.LocalDeclarationVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.ModuleSourceMapper;
 import com.redhat.ceylon.compiler.typechecker.analyzer.ModuleVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.MutableVisitor;
+import com.redhat.ceylon.compiler.typechecker.analyzer.OpaqueVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.RefinementVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.SelfReferenceVisitor;
 import com.redhat.ceylon.compiler.typechecker.analyzer.SpecificationVisitor;
@@ -449,6 +450,7 @@ public class PhasedUnit {
             rootNode.visit(new BlockingVisitor());
             rootNode.visit(new ImmutabilityVisitor(unit));
             rootNode.visit(new MutableVisitor(unit));
+            rootNode.visit(new OpaqueVisitor());
             usageAnalyzed = true;
         }
     }

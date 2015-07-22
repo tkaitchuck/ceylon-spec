@@ -19,7 +19,7 @@ abstract class Graph<N,E>()
     "A Node. This is an abstract type with
      a concrete implementation for each 
      implementation of the family"
-    shared formal class Node() of N {
+    shared formal class Node() of N satisfies Immutable {
         shared default Boolean touches(E edge) =>
                 edge.touches(this of N);
     }

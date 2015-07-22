@@ -105,5 +105,5 @@ void comprehensions() {
 }
 
 class SuperWithIter({Character*} iter) {}
-class BadSubWithIter(variable String s) extends SuperWithIter({@error for (c in s) c}) {}
+mutable class BadSubWithIter(variable String s) extends SuperWithIter({@error for (c in s) c}) {}
 class GoodSubWithIter(String s) extends SuperWithIter({for (c in s) c}) {}

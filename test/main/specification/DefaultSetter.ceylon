@@ -1,4 +1,4 @@
-class DefaultSetter() {
+mutable class DefaultSetter() {
     variable Integer a = 0;
     interface I {
         shared formal variable Integer aFormal;
@@ -9,7 +9,7 @@ class DefaultSetter() {
             outer.a = aDefault;
         }
     }
-    abstract class Abstract() satisfies I {
+    mutable abstract class Abstract() satisfies I {
         shared actual default Integer aFormal {
             return aDefault;
         }
@@ -31,12 +31,12 @@ void variation() {
     assign j { i=j; }
 }
 
-shared abstract class LogicalOperatorsParent<B>(){
+mutable shared abstract class LogicalOperatorsParent<B>() given B satisfies Immutable {
     shared formal variable B boxedB1;
     shared formal variable B boxedB2;
 }
 
-shared class LogicalOperators() extends LogicalOperatorsParent<Boolean>(){
+mutable shared class LogicalOperators() extends LogicalOperatorsParent<Boolean>(){
     shared variable Boolean b1 = false;
     shared variable Boolean b2 = false;
     shared actual variable Boolean boxedB1 = b1;

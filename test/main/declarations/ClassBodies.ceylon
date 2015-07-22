@@ -320,7 +320,7 @@ class ClassBodies() {
         @error variable value t = this;
     }
     
-    class Good5WithThis() {
+    mutable class Good5WithThis() {
         String name = "gavin";
         variable Good5WithThis? t = null;
         void member() {
@@ -328,7 +328,7 @@ class ClassBodies() {
         }
     }
     
-    object good5WithThis {
+    mutable object good5WithThis {
         String name = "gavin";
         variable Object? t = null;
         void member() {
@@ -336,13 +336,13 @@ class ClassBodies() {
         }
     }
     
-    class Bad5WithThis() {
+    mutable class Bad5WithThis() {
         String name = "gavin";
         variable Bad5WithThis? t = null;
         @error t = this;
     }
     
-    object bad5WithThis {
+    mutable object bad5WithThis {
         String name = "gavin";
         variable Object? t = null;
         @error t = this;
@@ -458,7 +458,7 @@ class ClassBodies() {
         String name = "gavin";
     }
     
-    class Good4WithOuter() {
+    mutable class Good4WithOuter() {
         String name = "gavin";
         variable Object? o = null;
         class Inner() {
@@ -466,7 +466,7 @@ class ClassBodies() {
         }
     }
     
-    class Bad4WithOuter() {
+    mutable class Bad4WithOuter() {
         variable Object? o = null;
         class Inner() {
             @error o = outer;
@@ -474,7 +474,7 @@ class ClassBodies() {
         String name = "gavin";
     }
     
-    object good4WithOuter {
+    mutable object good4WithOuter {
         String name = "gavin";
         variable Object? o = null;
         object inner {
@@ -484,7 +484,7 @@ class ClassBodies() {
         }
     }
     
-    object bad7WithOuter {
+    mutable object bad7WithOuter {
         String name = "gavin";
         variable Object? o = null;
         object inner {
@@ -492,7 +492,7 @@ class ClassBodies() {
         }
     }
     
-    object bad4WithOuter {
+    mutable object bad4WithOuter {
         variable Object? o = null;
         object inner {
             @error o = outer;

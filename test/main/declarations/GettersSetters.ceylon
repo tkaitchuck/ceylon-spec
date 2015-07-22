@@ -1,6 +1,6 @@
 interface GettersSetters {
     
-    class Setters() {
+    mutable class Setters() {
         String hi { return "hi"; }
         assign hi {}
         @error assign howdy {  }
@@ -28,7 +28,7 @@ interface GettersSetters {
         @error assign hi {}
     }
     
-    class SharedGetterSetter() {
+    mutable class SharedGetterSetter() {
         shared String name {
             return "gavin";
         }
@@ -44,19 +44,19 @@ interface GettersSetters {
         @error SharedGetterSetter().greeting = "hi";
     }
     
-    class FatArrowSetter(n) {
+    mutable class FatArrowSetter(n) {
         variable String n;
         String name => n;
         assign name => n=name;
     }
         
-    class BrokenSetter1(n) {
+    mutable class BrokenSetter1(n) {
         variable String n;
         String name => n;
         @error assign name;
     }
         
-    class BrokenSetter2(n) {
+    mutable class BrokenSetter2(n) {
         variable String n;
         String name => n;
         @error assign name => "hello" + "world";

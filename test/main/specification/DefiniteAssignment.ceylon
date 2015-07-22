@@ -628,14 +628,14 @@ interface DefiniteAssignment {
         }
     }
     
-    class TestNonemptyRangeFor2() {
+    mutable class TestNonemptyRangeFor2() {
         shared variable Integer j;
         for (i in 0..10) {
             j = i;
         }
     }
 
-    class TestNonemptyRangeFor3() {
+    mutable class TestNonemptyRangeFor3() {
         shared variable Integer j;
         for (i in 0..10) {
             if (1==1) {
@@ -647,14 +647,14 @@ interface DefiniteAssignment {
         }
     }
     
-    class TestWhileTrue1() {
+    mutable class TestWhileTrue1() {
         shared variable Integer j;
         while (true) {
             j = 0;
         }
     }
     
-    class TestWhileTrue2() {
+    mutable class TestWhileTrue2() {
         shared variable Integer j;
         while (true) {
             if (1==1) {

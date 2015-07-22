@@ -55,7 +55,7 @@ interface NewParameterHiding {
         shared String name;
     }
     
-    class AdvancedHiding(x, y) {
+    mutable class AdvancedHiding(x, y) {
         shared Float x;
         shared variable Float y;
         @type:"Float" value f = x;
@@ -74,7 +74,7 @@ interface NewParameterHiding {
     }
     
     class Up(Float x, Float y) {}
-    class Down(x,y) extends Up(x,y) {
+    mutable class Down(x,y) extends Up(x,y) {
         shared Float x; 
         variable shared Float y;
     }
@@ -84,7 +84,7 @@ interface NewParameterHiding {
         String s;
     }
     
-    class Broken() {
+    mutable class Broken() {
         @error x = 1.0;
         @error y = 0.0;
         @error z = 2.0;

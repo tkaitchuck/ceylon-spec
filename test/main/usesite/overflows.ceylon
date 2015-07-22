@@ -16,16 +16,16 @@ shared void run() => foo(BarBaz());
 
 
 
-abstract class Base<out Self>() of Self
+mutable abstract class Base<out Self>() of Self
         given Self satisfies Base<Self> {
     shared variable Integer a = 0;
 }
 
-class Sub1() extends Base<Sub1>() {
+mutable class Sub1() extends Base<Sub1>() {
     shared variable Integer b = 0;
 }
 
-class Sub2() extends Base<Sub2>() {
+mutable class Sub2() extends Base<Sub2>() {
     shared variable Integer b = 0;
 }
 

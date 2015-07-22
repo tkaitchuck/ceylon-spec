@@ -1,4 +1,4 @@
-class Counter {
+mutable class Counter {
     Integer init;
     variable Integer count;
     shared new () {

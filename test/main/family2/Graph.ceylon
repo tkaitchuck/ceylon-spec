@@ -11,7 +11,7 @@ abstract class Graph<G,N,E>() of G
         }
     }
 
-    shared formal class Node() of N {
+    shared formal class Node() of N satisfies Immutable {
         shared default Boolean touches(E edge) {
             return edge.touches(this of N);
         }

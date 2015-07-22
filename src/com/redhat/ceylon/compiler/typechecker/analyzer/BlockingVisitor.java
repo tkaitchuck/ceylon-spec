@@ -34,6 +34,7 @@ public class BlockingVisitor extends Visitor {
 
 	void endAnnotatedBlockingScope(boolean ab) {
 		annotatedBlocking = ab;
+		methodName = null;
 	}
 
 	@Override
@@ -46,57 +47,33 @@ public class BlockingVisitor extends Visitor {
 
 	@Override
 	public void visit(Tree.AnyMethod that) {
-		// System.out.println("In file " + fileName + " method " +
-		// that.getDeclarationModel());
 		boolean ab = beginAnnotatedBlockingScope(that.getDeclarationModel()
 				.isBlocking());
+		checkRefinesNonBlocking(that, that.getDeclarationModel());
 		methodName = name(that.getIdentifier());
 		super.visit(that);
 		endAnnotatedBlockingScope(ab);
+	}
+
+	private void checkRefinesNonBlocking(Node that, Function declarationModel) {
+		Declaration declaration = declarationModel.getRefinedDeclaration();
+		if (declarationModel.isBlocking()) {
+			if ((declaration instanceof Function && !((Function)declaration).isBlocking())  ||
+					(declaration instanceof Constructor && !((Constructor)declaration).isBlocking())) {
+				that.addError("A blocking method cannot refine a non-blocking method.");
+			}
+		}
 	}
 
 	@Override
 	public void visit(Tree.Constructor that) {
 		boolean ab = beginAnnotatedBlockingScope(that.getDeclarationModel()
 				.isBlocking());
+		checkRefinesNonBlocking(that, that.getDeclarationModel());
 		methodName = name(that.getIdentifier());
 		super.visit(that);
 		endAnnotatedBlockingScope(ab);
 	}
-	
-	//TODO: These can't be made to work because the definition is not available.
-	//We could embed blocking into the function type, but this is messy.
-//	@Override
-//	public void visit(Tree.ParameterizedExpression that) {
-//		that.getPrimary().get
-//	}
-//	
-//	@Override
-//	public void visit(Tree.ExpressionStatement that) {
-//		Tree.Expression expr = that.getExpression();
-//		expr.getTerm().get
-//		handelExpression(expr);
-//	}
-	
-//	@Override
-//	public void visit(Tree.Expression that) {
-//		super.visit(that);
-//		Tree.Term t = that.getTerm();
-//		System.out.println("Expression term: "+t.getClass().getSimpleName());
-//		if (t instanceof Tree.InvocationExpression) {
-//			Tree.InvocationExpression ie = ((Tree.InvocationExpression) t);
-//			Tree.Term primary = unwrapExpressionUntilTerm(ie.getPrimary());
-//			if (primary == null) {
-//				return;
-//			}
-//			System.out.println("Primary term: "+primary.getClass().getSimpleName());
-//			if (primary instanceof Tree.MemberOrTypeExpression) {
-//				Tree.MemberOrTypeExpression mte = (Tree.MemberOrTypeExpression) primary;
-//				Declaration dec = mte.getDeclaration();
-//				handelInvocation(that, dec);
-//			}
-//		}
-//	}
 
 	@Override
 	public void visit(Tree.MemberOrTypeExpression that) {
@@ -132,7 +109,10 @@ public class BlockingVisitor extends Visitor {
 //	}
 
 	private void handelInvocation(Node that, Declaration dec) {
-		if (dec instanceof Function) {
+		if (annotatedBlocking) {
+			return;
+		}
+ 		if (dec instanceof Function) {
 			if (((Function) dec).isBlocking()) {
 				that.addError("'"
 						+ methodName

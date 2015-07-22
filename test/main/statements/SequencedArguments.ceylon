@@ -1,4 +1,4 @@
-class Assignment() {
+mutable class Assignment() {
     variable String name="gavin";
     this.name="stef";
     name="tako";

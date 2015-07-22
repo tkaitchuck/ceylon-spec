@@ -261,7 +261,7 @@ Integer method(String p){ return 1; }
 Integer mplMethod(String p)(Boolean b){ return 1; }
 Ret parameterisedMethod<Ret, Arg>(Arg a){ return nothing; }
 
-class Container(shared Integer parameterAndSharedAttribute,
+mutable class Container(shared Integer parameterAndSharedAttribute,
                 Integer parameter,
                 sharedAttributeAndParameter,
                 attributeAndParameter,
@@ -281,16 +281,16 @@ class Container(shared Integer parameterAndSharedAttribute,
     Integer privateAttribute = 2;
 }
 
-class ParameterisedContainer<Outer>(Outer a,
+mutable class ParameterisedContainer<Outer>(Outer a,
                                     shared Integer parameterAndSharedAttribute,
                                     Integer parameter,
                                     sharedAttributeAndParameter,
-                                    attributeAndParameter){
+                                    attributeAndParameter) given Outer satisfies Immutable {
     shared Integer sharedAttributeAndParameter;
     Integer attributeAndParameter;
     shared interface InnerInterface<Inner>{}
     shared class InnerClass<Inner>(){}
-    shared void method<Inner>(Inner p){}
+    shared void method<Inner>(Inner p) given Inner satisfies Immutable {}
     shared Outer attribute = a;
     shared variable Outer variableAttribute = a;
 }

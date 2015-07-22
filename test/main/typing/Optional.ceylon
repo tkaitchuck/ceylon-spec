@@ -1,7 +1,7 @@
-class Optional() {
+mutable class Optional() {
     
-    class X() {}
-    class Y() {}
+    class X() satisfies Immutable {}
+    class Y() satisfies Immutable {}
     X? x = X();
     X? y = null;
     X? z = x;
@@ -71,18 +71,20 @@ class Optional() {
     Integer scs = somechars.size;
     value sci = somechars.iterator;
     
-    T t<T>(T t) => t;
+    object idenity {
+    	shared T t<T>(T t) => t;
+	}
     
     @type:"Null|String|String|Null|String|Integer|Sequence<Object>" 
     String? | String | String? | Integer | Sequence<Object> foobar1 = -1;
     @type:"Null|String|Integer|Sequence<Object>" value foobar1a = foobar1;
-    @type:"Null|String|Integer|Sequence<Object>" t(foobar1);
+    @type:"Null|String|Integer|Sequence<Object>" idenity.t(foobar1);
     String|Integer|Sequence<Object>|Null foobar1b = foobar1;
     
     @type:"Null|Sequential<String>|Sequential<String>|Sequence<String>|Integer|Float" 
     String[]? | String[] | Sequence<String> | Integer | Float foobar2 = 1.float;
     @type:"Null|Sequential<String>|Integer|Float" value foobar2a = foobar2;
-    @type:"Null|Sequential<String>|Integer|Float" t(foobar2);
+    @type:"Null|Sequential<String>|Integer|Float" idenity.t(foobar2);
     Sequential<String>|Integer|Float|Null foobar2b = foobar2;
     
     @type:"Sequence<Null|String|Integer|Sequence<Object>|Sequential<String>|Float>" 

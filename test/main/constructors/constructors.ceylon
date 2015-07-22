@@ -40,7 +40,7 @@ class WithConstAndDefaultConst {
     new const() {}
 }
 
-class WithAttributes {
+mutable class WithAttributes {
     String name = "Trompon";
     Integer init;
     variable Integer count;
@@ -61,7 +61,7 @@ class WithAttributes {
     }
 }
 
-class WithSharedAttributes {
+mutable class WithSharedAttributes {
     shared String name = "Trompon";
     shared Integer init;
     shared variable Integer count;
@@ -82,7 +82,7 @@ class WithSharedAttributes {
     }
 }
 
-class BrokenWithAttributes {
+mutable class BrokenWithAttributes {
     String name;
     variable Integer count;
     Integer init;
@@ -118,7 +118,7 @@ class BrokenWithSharedAttributes {
     }
 }
 
-class WithAttributesAndMisplacedStatement {
+mutable class WithAttributesAndMisplacedStatement {
     String name = "Trompon";
     Integer init;
     variable Integer count;
@@ -148,7 +148,7 @@ abstract class WithSplitInitializer {
     Integer count = 1;
 }
 
-class WithAttributesAndMispacedUsage {
+mutable class WithAttributesAndMispacedUsage {
     String name = "Trompon";
     Integer init;
     variable Integer count;

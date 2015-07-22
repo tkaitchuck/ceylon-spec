@@ -164,13 +164,16 @@ class Inheritance() {
         @error Anything sup1 = super;
         Anything sup2;
         @error sup2 = super;
-        variable Anything sup3 = null;
-        @error sup3 = super;
         void accept(Anything v) {}
         @error accept(super);
         Anything supe() {
             @error return super;
         }
+    }
+    
+    mutable class E() {
+        variable Anything sup = null;
+        @error sup = super;
     }
     
     class XXXX(String s) {}

@@ -23,7 +23,7 @@ interface InitializerParams {
         if (false) {
             @error lorax = "something";
         }
-        variable String xarol;
+        @error variable String xarol;
         if (true) {
             xarol = "something else";
         }

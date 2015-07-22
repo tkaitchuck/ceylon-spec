@@ -45,7 +45,7 @@ class Refinement() {
     
     interface BadTypes {
         
-        class X() {
+        mutable class X() {
             shared default String hello = "Hello";
             shared default variable Integer count = 0;
             shared default void print(String s) {}
@@ -68,15 +68,15 @@ class Refinement() {
         class X() {
             shared default Object something = "Hello";
             shared default Integer count = 0;
-            shared default void print(Object o) {}
+            shared default void print(Immutable o) {}
             shared default Object getSomething() { return something; }
             shared default class Z() {}
         }
         
-        class Y() extends X() {
+        mutable class Y() extends X() {
             shared actual Integer something = 1;
             shared actual variable Integer count = 0;
-            shared actual void print(Object o) {}
+            shared actual void print(Immutable o) {}
             shared actual Integer getSomething() { return something; }
             shared actual class Z() extends super.Z() {}
         }
@@ -151,7 +151,7 @@ class Refinement() {
 
 }
 
-class RefinedAsVariableSetterBase() {
+mutable class RefinedAsVariableSetterBase() {
     shared default String attr = "";
     shared variable default String vattr = "";
     shared default String bar {
@@ -160,7 +160,7 @@ class RefinedAsVariableSetterBase() {
     assign bar {}
 }
 
-class RefinedAsVariableSetterSub() extends RefinedAsVariableSetterBase() {
+mutable class RefinedAsVariableSetterSub() extends RefinedAsVariableSetterBase() {
     shared actual String attr {return "";}
     assign attr {}
     shared actual String vattr {return "";}
@@ -171,27 +171,27 @@ class RefinedAsVariableSetterSub() extends RefinedAsVariableSetterBase() {
     assign bar {}    
 }
 
-abstract class AbstractRefined(){
+mutable abstract class AbstractRefined(){
     shared default String bar {
         return "";
     }
     assign bar {}
 }
 
-class ConcreteRefinement() extends AbstractRefined() {
+mutable class ConcreteRefinement() extends AbstractRefined() {
     shared actual String bar {
         return "";
     }
     assign bar {}
 }
 
-class VariableSuper() {
-    shared default variable Object i=0;
-    shared default Object j=0;
-    shared default variable Object k=0;
+mutable class VariableSuper() {
+    shared default variable Immutable i=0;
+    shared default Immutable j=0;
+    shared default variable Immutable k=0;
 }
 
-class VariableSub() extends VariableSuper() {
+mutable class VariableSub() extends VariableSuper() {
     @error shared actual variable Integer i=1;
     shared actual variable Integer j=1;
     @error shared actual variable Anything k=0;

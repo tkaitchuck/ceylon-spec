@@ -1,11 +1,11 @@
 void nested() {
-    class Outer<T>(variable T t) {
+    mutable class Outer<T>(variable T t) given T satisfies Immutable {
         shared class Inner() {
             shared T get() => t;
             shared void set(T t) => outer.t = t;
         }
     }
-    Outer<out Object>.Inner o = Outer("").Inner();
-    Object obj = o.get();
+    Outer<out Immutable>.Inner o = Outer("").Inner();
+    Immutable obj = o.get();
     @error o.set("");
 }

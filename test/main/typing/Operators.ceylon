@@ -1,4 +1,4 @@
-class Operators() {
+mutable class Operators() {
     
     class X() {}
     class Y() {}

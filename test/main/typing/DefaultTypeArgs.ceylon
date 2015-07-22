@@ -56,21 +56,36 @@ class DefaultTypeArgs() {
     @type:"Set<Object>" Set set2 = nothing;
     
     shared void run() { // keep this method
-        class FooBar<Bar=String>() { 
-            shared object b {
+        class FooBar<Bar=String>() given Bar satisfies Immutable { 
+            shared mutable object b {
                 shared variable Bar? c = null;
             }
         }
         @error FooBar<Float>().b.c = "aaa";
     }
     
-    class FooBar<Bar=String>() { 
-        shared object b {
+    class FooBar<Bar=String>() given Bar satisfies Immutable { 
+        shared mutable object b {
             shared variable Bar? c = null;
         }
     }
-    
     @error void x() => FooBar<Float>().b.c = "aaa";
+    
+    shared void run2() { // keep this method
+        class FooBar2<opaque Bar=String>() { 
+            shared mutable object b {
+                shared variable Bar? c = null;
+            }
+        }
+        @error FooBar2<Float>().b.c = "aaa";
+    }
+    
+    class FooBar2<opaque Bar=String>() { 
+        shared mutable object b {
+            shared variable Bar? c = null;
+        }
+    }
+    @error void x() => FooBar2<Float>().b.c = "aaa";
     
 }
 
