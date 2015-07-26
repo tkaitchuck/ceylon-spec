@@ -1991,6 +1991,7 @@ typeReference returns [Identifier identifier,
 typeArgumentsStart
     : SMALLER_OP
     (
+      variance? //not really legal here
       type
       (LARGER_OP|SMALLER_OP|COMMA)
     |

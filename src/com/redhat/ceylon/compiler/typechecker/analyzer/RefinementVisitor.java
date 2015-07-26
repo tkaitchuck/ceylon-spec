@@ -10,7 +10,6 @@ import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.check
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.declaredInPackage;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypeErrorNode;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypedDeclaration;
-import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.isConstructor;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.message;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.DeclarationVisitor.setVisibleScope;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.ExpressionVisitor.getRefinedMember;
@@ -20,6 +19,8 @@ import static com.redhat.ceylon.model.typechecker.model.ModelUtil.getIntervening
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.getNativeHeader;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.getRealScope;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.getSignature;
+import static com.redhat.ceylon.model.typechecker.model.ModelUtil.intersectionOfSupertypes;
+import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isConstructor;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isImplemented;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isNamed;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isObject;
@@ -29,7 +30,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -177,7 +177,7 @@ public class RefinementVisitor extends Visitor {
         }
         // Find the header
         Declaration header =
-                getNativeHeader(dec.getContainer(), dec.getName());
+                getNativeHeader(dec);
         if (header == null) {
             // We don't have a header but we still need to maintain
             // the same interface as the rest of the implementations,
@@ -217,7 +217,7 @@ public class RefinementVisitor extends Visitor {
                 // we first need to find _its_ implementations
                 // but only if there's no header
                 Declaration header =
-                        getNativeHeader(cd.getContainer(), cd.getName());
+                        getNativeHeader(cd);
                 if (header == null) {
                     List<Declaration> cs = getNativeMembers(cd.getContainer(), cd.getName());
                     for (Declaration c : cs) {
@@ -350,16 +350,14 @@ public class RefinementVisitor extends Visitor {
                     message(dec));
         }
         // FIXME probably not the right tests
-        checkClassParameters(that,
+        checkNativeClassParameters(that,
                 dec, header,
                 dec.getReference(),
-                header.getReference(),
-                true);
-        checkRefiningMemberTypeParameters(that,
+                header.getReference());
+        checkNativeTypeParameters(that,
                 dec, header,
                 dec.getTypeParameters(),
-                header.getTypeParameters(),
-                true);
+                header.getTypeParameters());
         
         checkMissingMemberImpl(that, dec, header);
     }
@@ -373,7 +371,8 @@ public class RefinementVisitor extends Visitor {
         boolean implNext = true;
         Declaration hdr = null;
         Declaration impl = null;
-        while (hdrIter.hasNext() && implIter.hasNext()) {
+        while ((hdrIter.hasNext() || !hdrNext)
+                && (implIter.hasNext() || !implNext)) {
             if (hdrNext) {
                 hdr = hdrIter.next();
             }
@@ -386,7 +385,6 @@ public class RefinementVisitor extends Visitor {
                     that.addError("native header '" + hdr.getName() +
                             "' of '" + containerName(hdr) +
                             "' has no native implementation");
-                    return;
                 }
                 hdrNext = true;
                 implNext = false;
@@ -398,7 +396,7 @@ public class RefinementVisitor extends Visitor {
                 implNext = true;
             }
         }
-        if (hdrIter.hasNext()) {
+        while (hdrIter.hasNext()) {
             hdr = hdrIter.next();
             if (!isImplemented(hdr)) {
                 that.addError("native header '" + hdr.getName() +
@@ -412,6 +410,9 @@ public class RefinementVisitor extends Visitor {
             new Comparator<Declaration>() {
         @Override
         public int compare(Declaration o1, Declaration o2) {
+            if (o1.getName() == null && o2.getName() == null) return 0;
+            if (o1.getName() == null) return -1;
+            if (o2.getName() == null) return 1;
             return o1.getName().compareTo(o2.getName());
         }
     };
@@ -434,7 +435,7 @@ public class RefinementVisitor extends Visitor {
             return;
         }
         Type at = header.getType();
-        if (!dec.getType().isExactly(at)) {
+        if (dec.getType() != null && !dec.getType().isExactly(at)) {
             that.addError("native implementation must have the same return type as native header: " +
                     message(dec) + " must have the type '" +
                     at.asString(that.getUnit()) + "'");
@@ -461,11 +462,10 @@ public class RefinementVisitor extends Visitor {
                 dec.getReference(),
                 header.getReference(),
                 true);
-        checkRefiningMemberTypeParameters(that,
+        checkNativeTypeParameters(that,
                 dec, header,
                 dec.getTypeParameters(),
-                header.getTypeParameters(),
-                true);
+                header.getTypeParameters());
     }
     
     private void checkNativeValue(Tree.Declaration that, 
@@ -474,7 +474,7 @@ public class RefinementVisitor extends Visitor {
             return;
         }
         Type at = header.getType();
-        if (!dec.getType().isExactly(at)
+        if (dec.getType() != null && !dec.getType().isExactly(at)
                 && !sameObjects(dec, header)) {
             that.addError("native implementation must have the same type as native header: " +
                     message(dec) + " must have the type '" +
@@ -502,29 +502,74 @@ public class RefinementVisitor extends Visitor {
         return isObject(dec) && isObject(header) && dec.getQualifiedNameString().equals(header.getQualifiedNameString());
     }
 
-    private void checkClassParameters(Tree.Declaration that,
-            Declaration dec, Declaration refined,
-            Reference refinedMember, 
-            Reference refiningMember,
-            boolean forNative) {
-        List<ParameterList> refiningParamLists = 
-                ((Functional) dec).getParameterLists();
-        List<ParameterList> refinedParamLists = 
-                ((Functional) refined).getParameterLists();
-        if (refinedParamLists.size()!=refiningParamLists.size()) {
-            that.addError("native classes must have the same number of parameter lists: " + 
-                    message(dec));
+    private void checkNativeClassParameters(Tree.Declaration that,
+            Class dec, Class header,
+            Reference decRef, 
+            Reference hdrRef) {
+        // First check if the header has constructors and the dec has none and no parameters either
+        // (which means it will inherit the constructors from the header)
+        boolean checkok = (header.hasConstructors() || header.hasEnumerated())
+                && !dec.hasConstructors()
+                && !dec.hasEnumerated()
+                && dec.getParameterLists().isEmpty();
+        if (!checkok) {
+            if (dec.hasConstructors() != header.hasConstructors()
+                    || dec.hasEnumerated() != header.hasEnumerated()) {
+                that.addError("native classes must all have parameters or all have constructors: " + 
+                        message(dec));
+            } else if (!dec.hasConstructors() && !dec.hasEnumerated()) {
+                List<ParameterList> refiningParamLists = 
+                        dec.getParameterLists();
+                List<ParameterList> refinedParamLists = 
+                        header.getParameterLists();
+                if (refinedParamLists.size()!=refiningParamLists.size()) {
+                    that.addError("native classes must have the same number of parameter lists: " + 
+                            message(dec));
+                }
+                for (int i=0; 
+                        i<refinedParamLists.size() && 
+                        i<refiningParamLists.size(); 
+                        i++) {
+                    checkParameterTypes(that, 
+                            getParameterList(that, i), 
+                            hdrRef, decRef, 
+                            refiningParamLists.get(i), 
+                            refinedParamLists.get(i),
+                            true);
+                }
+            }
         }
-        for (int i=0; 
-                i<refinedParamLists.size() && 
-                i<refiningParamLists.size(); 
-                i++) {
-            checkParameterTypes(that, 
-                    getParameterList(that, i), 
-                    refiningMember, refinedMember, 
-                    refiningParamLists.get(i), 
-                    refinedParamLists.get(i),
-                    forNative);
+    }
+
+    private void checkNativeTypeParameters(
+            Tree.Declaration that,
+            Declaration impl, Declaration header, 
+            List<TypeParameter> implTypeParams,
+            List<TypeParameter> headerTypeParams) {
+        int headerSize = headerTypeParams.size();
+        int implSize = implTypeParams.size();
+        if (headerSize != implSize) {
+            that.addError("native header does not have the same number of type parameters as native implementation: " +
+                    message(impl));
+        } else {
+            for (int i = 0; i < headerSize; i++) {
+                TypeParameter headerTP = headerTypeParams.get(i);
+                TypeParameter implTP = implTypeParams.get(i);
+                if (!headerTP.getName().equals(implTP.getName())) {
+                    that.addError("type parameter does not have the same name as its header: '" +
+                            implTP.getName() +
+                            "' for " +
+                            message(impl));
+                }
+                Type headerIntersect = intersectionOfSupertypes(headerTP);
+                Type implIntersect = intersectionOfSupertypes(implTP);
+                if (!headerIntersect.isExactly(implIntersect)) {
+                    that.addError("type parameter does not have the same bounds as its header: '" +
+                            implTP.getName() +
+                            "' for " +
+                            message(impl));
+                }
+            }
         }
     }
 
@@ -722,7 +767,7 @@ public class RefinementVisitor extends Visitor {
                     ((Generic) refining).getTypeParameters();
             checkRefiningMemberTypeParameters(that, 
                     refining, refined, refinedTypeParams, 
-                    refiningTypeParams, false);
+                    refiningTypeParams);
             typeArgs = checkRefiningMemberUpperBounds(that, 
                     ci, refined, 
                     refinedTypeParams, 
@@ -869,29 +914,15 @@ public class RefinementVisitor extends Visitor {
 	        Tree.Declaration that,
 	        Declaration dec, Declaration refined, 
             List<TypeParameter> refinedTypeParams,
-            List<TypeParameter> refiningTypeParams,
-            boolean forNative) {
+            List<TypeParameter> refiningTypeParams) {
 	    int refiningSize = refiningTypeParams.size();
 	    int refinedSize = refinedTypeParams.size();
 	    if (refiningSize!=refinedSize) {
-	        String subject = 
-	                forNative ? 
-                        "native header" : 
-                        "refined member";
-	        String current = 
-	                forNative ? 
-	                    "native implementation" : 
-	                    "refining member";
 	        StringBuilder message = new StringBuilder();
-	        message.append(current) 
-	                .append(" does not have the same number of type parameters as ") 
-	                .append(subject)
-	                .append(": ") 
-	                .append(message(dec));
-            if (!forNative) {
-                message.append(" refines ")
-                        .append(message(refined));
-            }
+	        message.append("refining member does not have the same number of type parameters as refined member: ") 
+	                .append(message(dec))
+                    .append(" refines ")
+                    .append(message(refined));
             that.addError(message.toString());
 	    }
     }
@@ -1395,6 +1426,10 @@ public class RefinementVisitor extends Visitor {
         else if (that instanceof Tree.AnyClass) {
             Tree.AnyClass ac = (Tree.AnyClass) that;
             return ac.getParameterList();
+        }
+        else if (that instanceof Tree.Constructor) {
+            Tree.Constructor con = (Tree.Constructor) that;
+            return con.getParameterList();
         }
         else {
             return null;

@@ -1,12 +1,15 @@
 package com.redhat.ceylon.compiler.typechecker.analyzer;
 
+import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.formatPath;
 import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.hasError;
 import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.name;
 import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.unwrapExpressionUntilTerm;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.appliedType;
+import static com.redhat.ceylon.model.typechecker.model.ModelUtil.getNativeHeader;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.intersectionType;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isBooleanFalse;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isBooleanTrue;
+import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isConstructor;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isNamed;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isTypeUnknown;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.unionType;
@@ -16,21 +19,26 @@ import static java.util.Collections.emptyList;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.redhat.ceylon.common.Backend;
+import com.redhat.ceylon.common.BackendSupport;
 import com.redhat.ceylon.compiler.typechecker.tree.Node;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.ClassBody;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.TypeVariance;
+import com.redhat.ceylon.model.cmr.JDKUtils;
 import com.redhat.ceylon.model.typechecker.model.Class;
 import com.redhat.ceylon.model.typechecker.model.Constructor;
 import com.redhat.ceylon.model.typechecker.model.Declaration;
-import com.redhat.ceylon.model.typechecker.model.FunctionOrValue;
 import com.redhat.ceylon.model.typechecker.model.Generic;
 import com.redhat.ceylon.model.typechecker.model.Interface;
 import com.redhat.ceylon.model.typechecker.model.Module;
+import com.redhat.ceylon.model.typechecker.model.ModuleImport;
+import com.redhat.ceylon.model.typechecker.model.Package;
 import com.redhat.ceylon.model.typechecker.model.Parameter;
 import com.redhat.ceylon.model.typechecker.model.ParameterList;
 import com.redhat.ceylon.model.typechecker.model.Reference;
@@ -55,10 +63,11 @@ public class AnalyzerUtil {
     
     static final List<Type> NO_TYPE_ARGS = emptyList();
     
-    static TypedDeclaration getTypedMember(TypeDeclaration d, String name,
-            List<Type> signature, boolean ellipsis, Unit unit) {
+    static TypedDeclaration getTypedMember(TypeDeclaration td, 
+            String name, List<Type> signature, boolean ellipsis, 
+            Unit unit) {
         Declaration member = 
-                d.getMember(name, unit, signature, ellipsis);
+                td.getMember(name, unit, signature, ellipsis);
         if (member instanceof TypedDeclaration) {
             return (TypedDeclaration) member;
         }
@@ -67,10 +76,11 @@ public class AnalyzerUtil {
         }
     }
 
-    static TypeDeclaration getTypeMember(TypeDeclaration d, String name,
-            List<Type> signature, boolean ellipsis, Unit unit) {
+    static TypeDeclaration getTypeMember(TypeDeclaration td, 
+            String name, List<Type> signature, boolean ellipsis, 
+            Unit unit) {
         Declaration member = 
-                d.getMember(name, unit, signature, ellipsis);
+                td.getMember(name, unit, signature, ellipsis);
         if (member instanceof TypeDeclaration) {
             return (TypeDeclaration) member;
         }
@@ -89,11 +99,24 @@ public class AnalyzerUtil {
         Declaration result = 
                 scope.getMemberOrParameter(unit, 
                         name, signature, ellipsis);
+        if (result == null) {
+            if (scope instanceof Declaration) {
+                // If we couldn't find the declaration in the current
+                // scope and the scope is a native implementation we
+                // will try again with its header
+                Declaration decl = (Declaration) scope;
+                if (decl.isNative() && 
+                        !decl.isNativeHeader()) {
+                    Scope ds = decl.getScope();
+                    result = getNativeHeader(ds, name);
+                }
+            }
+        }
         if (result instanceof TypedDeclaration) {
-        	return (TypedDeclaration) result;
+            return (TypedDeclaration) result;
         }
         else {
-        	return null;
+            return null;
         }
     }
     
@@ -103,6 +126,19 @@ public class AnalyzerUtil {
         Declaration result = 
                 scope.getMemberOrParameter(unit, 
                         name, signature, ellipsis);
+        if (result == null) {
+            if (scope instanceof Declaration) {
+                // If we couldn't find the declaration in the current
+                // scope and the scope is a native implementation we
+                // will try again with its header
+                Declaration decl = (Declaration)scope;
+                if (decl.isNative() && 
+                        !decl.isNativeHeader()) {
+                    Scope ds = decl.getScope();
+                    result = getNativeHeader(ds, name);
+                }
+            }
+        }
         if (result instanceof TypeDeclaration) {
         	return (TypeDeclaration) result;
         }
@@ -115,12 +151,12 @@ public class AnalyzerUtil {
         }
     }
 
-    static TypedDeclaration getPackageTypedDeclaration(String name, 
-            List<Type> signature, boolean ellipsis,
+    static TypedDeclaration getPackageTypedDeclaration(
+            String name, List<Type> signature, boolean ellipsis,
             Unit unit) {
         Declaration result = 
-                unit.getPackage().getMember(name, 
-                        signature, ellipsis);
+                unit.getPackage()
+                    .getMember(name, signature, ellipsis);
         if (result instanceof TypedDeclaration) {
             return (TypedDeclaration) result;
         }
@@ -129,12 +165,12 @@ public class AnalyzerUtil {
         }
     }
     
-    static TypeDeclaration getPackageTypeDeclaration(String name, 
-            List<Type> signature, boolean ellipsis,
+    static TypeDeclaration getPackageTypeDeclaration(
+            String name, List<Type> signature, boolean ellipsis,
             Unit unit) {
         Declaration result = 
-                unit.getPackage().getMember(name, 
-                        signature, ellipsis);
+                unit.getPackage()
+                    .getMember(name, signature, ellipsis);
         if (result instanceof TypeDeclaration) {
             return (TypeDeclaration) result;
         }
@@ -203,8 +239,7 @@ public class AnalyzerUtil {
             int count = types.size();
             for (int i=0; i<count; i++) {
                 Tree.Type type = types.get(i);
-                Type t = 
-                        type.getTypeModel();
+                Type t = type.getTypeModel();
                 if (t==null) {
                     typeArguments.add(null);
                 }
@@ -257,18 +292,17 @@ public class AnalyzerUtil {
             //for missing arguments, use the default args
             for (int i=typeArguments.size(); i<size; i++) {
                 TypeParameter tp = typeParameters.get(i);
-            	Type dta = 
-            	        tp.getDefaultTypeArgument();
-            	if (dta==null || 
+                Declaration tpd = tp.getDeclaration();
+            	Type dta = tp.getDefaultTypeArgument();
+                if (dta==null || 
             	        //necessary to prevent stack overflow
             	        //for illegal recursively-defined
             	        //default type argument
-            	        dta.involvesDeclaration(tp.getDeclaration())) {
+            	        dta.involvesDeclaration(tpd)) {
             		break;
             	}
             	else {
-            	    Type da = 
-            	            dta.substitute(typeArgs, vars);
+            	    Type da = dta.substitute(typeArgs, vars);
             		typeArguments.add(da);
             		typeArgs.put(tp, da);
             	}
@@ -282,8 +316,10 @@ public class AnalyzerUtil {
         }
     }
     
-    public static Tree.Statement getLastExecutableStatement(Tree.ClassBody that) {
-        List<Tree.Statement> statements = that.getStatements();
+    public static Tree.Statement getLastExecutableStatement(
+            Tree.ClassBody that) {
+        List<Tree.Statement> statements = 
+                that.getStatements();
         Unit unit = that.getUnit();
         for (int i=statements.size()-1; i>=0; i--) {
             Tree.Statement s = statements.get(i);
@@ -313,9 +349,10 @@ public class AnalyzerUtil {
             //shortcut refinement statements with => aren't really "executable"
             Tree.SpecifierStatement ss = 
                     (Tree.SpecifierStatement) s;
-            return !(ss.getSpecifierExpression() 
-                    instanceof Tree.LazySpecifierExpression) || 
-                    !ss.getRefinement();
+            Tree.SpecifierExpression se = 
+                    ss.getSpecifierExpression();
+            return !(ss.getRefinement() &&
+                    se instanceof Tree.LazySpecifierExpression);
         }
         else if (s instanceof Tree.ExecutableStatement) {
             return true;
@@ -326,8 +363,8 @@ public class AnalyzerUtil {
                         (Tree.AttributeDeclaration) s;
                 Tree.SpecifierOrInitializerExpression sie = 
                         ad.getSpecifierOrInitializerExpression();
-        		return sie!=null && 
-        		        !(sie instanceof Tree.LazySpecifierExpression);
+        		return !(sie==null ||
+        		        sie instanceof Tree.LazySpecifierExpression);
             }
             else if (s instanceof Tree.ObjectDefinition) {
                 Tree.ObjectDefinition o = 
@@ -1133,12 +1170,143 @@ public class AnalyzerUtil {
         return type;
     }
 
-    static boolean isConstructor(Declaration member) {
-        return member instanceof Constructor ||
-                member instanceof FunctionOrValue && 
-                    ((FunctionOrValue) member)
-                        .getTypeDeclaration() 
-                            instanceof Constructor;
+    static Package importedPackage(Tree.ImportPath path, 
+                BackendSupport backendSupport) {
+            if (path!=null && 
+                    !path.getIdentifiers().isEmpty()) {
+                String nameToImport = 
+                        formatPath(path.getIdentifiers());
+                Module module = 
+                        path.getUnit()
+                            .getPackage()
+                            .getModule();
+                Package pkg = module.getPackage(nameToImport);
+                if (pkg != null) {
+                    if (pkg.getModule().equals(module)) {
+                        return pkg;
+                    }
+                    if (!pkg.isShared()) {
+                        path.addError("imported package is not shared: '" + 
+                                nameToImport + "'", 402);
+                    }
+    //                if (module.isDefault() && 
+    //                        !pkg.getModule().isDefault() &&
+    //                        !pkg.getModule().getNameAsString()
+    //                            .equals(Module.LANGUAGE_MODULE_NAME)) {
+    //                    path.addError("package belongs to a module and may not be imported by default module: " +
+    //                            nameToImport);
+    //                }
+                    //check that the package really does belong to
+                    //an imported module, to work around bug where
+                    //default package thinks it can see stuff in
+                    //all modules in the same source dir
+                    Set<Module> visited = new HashSet<Module>();
+                    for (ModuleImport mi: module.getImports()) {
+                        if (findModuleInTransitiveImports(
+                                mi.getModule(), 
+                                pkg.getModule(), 
+                                visited)) {
+                            return pkg; 
+                        }
+                    }
+                }
+                else {
+                    for (ModuleImport mi: module.getImports()) {
+                        if (mi.isNative()) {
+                            Backend backend = 
+                                    Backend.fromAnnotation(
+                                            mi.getNativeBackend());
+                            String name = 
+                                    mi.getModule()
+                                        .getNameAsString();
+                            if (!backendSupport.supportsBackend(backend) && 
+                                    (nameToImport.equals(name) || 
+                                     nameToImport.startsWith(name + "."))) {
+                                return null;
+                            }
+                            if (!backendSupport.supportsBackend(Backend.Java) && 
+                                    (JDKUtils.isJDKAnyPackage(nameToImport) || 
+                                     JDKUtils.isOracleJDKAnyPackage(nameToImport))) {
+                                return null;
+                            }
+                        }
+                    }
+                }
+                String help;
+                if (module.isDefault()) {
+                    help = " (define a module and add module import to its module descriptor)";
+                }
+                else {
+                    help = " (add module import to module descriptor of '" +
+                            module.getNameAsString() + "')";
+                }
+                path.addError("package not found in imported modules: '" + 
+                        nameToImport + "'" + help, 7000);
+            }
+            return null;
+        }
+
+    static Module importedModule(Tree.ImportPath path) {
+        if (path!=null && 
+                !path.getIdentifiers().isEmpty()) {
+            String nameToImport = 
+                    formatPath(path.getIdentifiers());
+            Module module = 
+                    path.getUnit()
+                        .getPackage()
+                        .getModule();
+            Package pkg = module.getPackage(nameToImport);
+            if (pkg != null) {
+                Module mod = pkg.getModule();
+                if (!pkg.getNameAsString()
+                        .equals(mod.getNameAsString())) {
+                    path.addError("not a module: '" + 
+                            nameToImport + "'");
+                    return null;
+                }
+                if (mod.equals(module)) {
+                    return mod;
+                }
+                //check that the package really does belong to
+                //an imported module, to work around bug where
+                //default package thinks it can see stuff in
+                //all modules in the same source dir
+                Set<Module> visited = new HashSet<Module>();
+                for (ModuleImport mi: module.getImports()) {
+                    Module m = mi.getModule();
+                    if (findModuleInTransitiveImports(m, mod, 
+                            visited)) {
+                        return mod; 
+                    }
+                }
+            }
+            path.addError("module not found in imported modules: '" + 
+                    nameToImport + "'", 7000);
+        }
+        return null;
+    }
+
+    private static boolean findModuleInTransitiveImports(
+            Module moduleToVisit, Module moduleToFind, 
+            Set<Module> visited) {
+        if (!visited.add(moduleToVisit)) {
+            return false;
+        }
+        else if (moduleToVisit.equals(moduleToFind)) {
+            return true;
+        }
+        else {
+            for (ModuleImport imp: moduleToVisit.getImports()) {
+                // skip non-exported modules
+                if (imp.isExport() &&
+                        findModuleInTransitiveImports(
+                                imp.getModule(), 
+                                moduleToFind, visited)) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
 }

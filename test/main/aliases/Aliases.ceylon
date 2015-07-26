@@ -60,6 +60,8 @@ class Aliases() {
     interface Seq<T> => T[];
     interface It<T> => {T*};
     interface Fun<T> => T(Object);
+    
+    class Cla(String str) => package.Class<String>(str);
 }
 
 interface Li0<U,V> => List<U>;
@@ -299,3 +301,38 @@ class Invariant<T>(shared T t) {}
 Invariant<Bug824_Z>&Invariant<Bug824_X> inv = Invariant<Bug824_X>(Bug824_W2());
 String name = inv.t.name;
 
+class WithSharedAliasOfTypeParameter<T>() {
+    shared alias AliasOfTypeParameter => T;
+}
+class WithInheritedSharedAliasOfTypeParameter() 
+        extends WithSharedAliasOfTypeParameter<String>() {}
+class WithInheritedSharedAliasOfTupleTypeParameter() 
+        extends WithSharedAliasOfTypeParameter<[String,Integer]>() {}
+void testSharedAliasOfTypeParameter() {
+    WithSharedAliasOfTypeParameter<String>.AliasOfTypeParameter y1 = "";
+    WithInheritedSharedAliasOfTypeParameter.AliasOfTypeParameter y2 = "";
+    WithInheritedSharedAliasOfTupleTypeParameter.AliasOfTypeParameter y3 = ["",1];
+    value [s,i] = y3;
+}
+
+
+class OuterX {
+    shared new create() {}
+    shared class In0() {}
+    shared class In1() {}
+    shared class In2 {
+        shared new create() {}
+    }
+}
+
+class OuterY extends OuterX {
+    shared new create() extends super.create() {}
+    class I0() => In0();
+    class I1() => super.In1();
+    class I2() => In2.create();
+    class X0() => super.create();
+    class X1() => OuterX.create();
+    class X2() => package.OuterX.create();
+    class Y0() => create();
+    class Y1() => package.OuterY.create();
+}

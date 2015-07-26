@@ -58,10 +58,14 @@ public class TypeArgumentVisitor extends Visitor {
             boolean topLevel = 
                     parameterizedDeclaration==null; //i.e. toplevel parameter in a parameter declaration
             if (topLevel) {
-            	FunctionOrValue mv = (FunctionOrValue) dec;
+                //TODO: to fix #1378 don't do this when the
+                //      parameter dec occurs in any parameter
+                //      list other than the first parameter
+                //      list of the function
+            	FunctionOrValue fov = (FunctionOrValue) dec;
                 parameterizedDeclaration = 
-            	        mv.getInitializerParameter()
-            	                .getDeclaration();
+            	        fov.getInitializerParameter()
+            	            .getDeclaration();
             }
 			check(that.getType(), false, 
 			        parameterizedDeclaration);
@@ -203,7 +207,8 @@ public class TypeArgumentVisitor extends Visitor {
             Declaration d, Node that) {
         if (type!=null) {
             List<TypeParameter> errors = 
-                    type.checkVariance(!contravariant && !variable, 
+                    type.checkVariance(
+                            !contravariant && !variable, 
                             contravariant && !variable, 
                             parameterizedDeclaration);
             displayErrors(that, type, errors, d);
@@ -236,8 +241,9 @@ public class TypeArgumentVisitor extends Visitor {
                 that.addError(var + 
                         " type parameter '" + tp.getName() + 
                         "' of '" + declaration.getName() +
-                        "' appears in " + loc + " location in type: '" + 
-                        typename + "'");
+                        "' appears in " + loc + 
+                        " location in type: '" + typename + 
+                        "'");
             }
         }
     }

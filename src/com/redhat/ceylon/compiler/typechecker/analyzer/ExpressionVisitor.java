@@ -18,9 +18,10 @@ import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTy
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypedDeclaration;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypedMember;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getUnspecifiedParameter;
+import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.importedModule;
+import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.importedPackage;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.inSameModule;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.involvesTypeParams;
-import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.isConstructor;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.isGeneric;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.isIndirectInvocation;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.notAssignableMessage;
@@ -51,7 +52,9 @@ import static com.redhat.ceylon.model.typechecker.model.ModelUtil.getTypeParamet
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.intersectionOfSupertypes;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.intersectionType;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isAbstraction;
+import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isConstructor;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isImplemented;
+import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isInNativeContainer;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isOverloadedVersion;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isTypeUnknown;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.typeParametersAsArgList;
@@ -76,7 +79,6 @@ import com.redhat.ceylon.compiler.typechecker.tree.Tree.Expression;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.Pattern;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.PositionalArgument;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.VoidModifier;
-import com.redhat.ceylon.compiler.typechecker.tree.TreeUtil;
 import com.redhat.ceylon.compiler.typechecker.tree.Visitor;
 import com.redhat.ceylon.model.typechecker.model.Class;
 import com.redhat.ceylon.model.typechecker.model.ClassOrInterface;
@@ -202,7 +204,9 @@ public class ExpressionVisitor extends Visitor {
         unit = that.getUnit();
         Backend ib = inBackend;
         String nat = unit.getPackage().getModule().getNativeBackend();
-        inBackend = Backend.fromAnnotation(nat);
+        if (nat != null) {
+            inBackend = Backend.fromAnnotation(nat);
+        }
         super.visit(that);
         inBackend = ib;
     }
@@ -452,6 +456,7 @@ public class ExpressionVisitor extends Visitor {
     private void destructure(Tree.Pattern pattern,
             Tree.SpecifierExpression se, Type type) {
         if (type!=null) {
+            type = type.resolveAliases();
             if (pattern instanceof Tree.TuplePattern) {
                 destructure(se, type, 
                         (Tree.TuplePattern) pattern);
@@ -1103,8 +1108,9 @@ public class ExpressionVisitor extends Visitor {
         inferType(that, sie);
         Tree.Type type = that.getType();
         if (type!=null) {
-        	Type t = type.getTypeModel();
-        	if (type instanceof Tree.LocalModifier) {
+            Type t = type.getTypeModel();
+            if (type instanceof Tree.LocalModifier &&
+                    !isNativeForWrongBackend()) {
         		if (dec.isParameter()) {
         			type.addError("parameter may not have inferred type: '" + 
         					dec.getName() + 
@@ -1991,7 +1997,9 @@ public class ExpressionVisitor extends Visitor {
     @Override public void visit(Tree.Declaration that) {
         Backend ib = inBackend;
         String nat = that.getDeclarationModel().getNativeBackend();
-        inBackend = Backend.fromAnnotation(nat);
+        if (nat != null) {
+            inBackend = Backend.fromAnnotation(nat);
+        }
         super.visit(that);
         inBackend = ib;
     }
@@ -3742,14 +3750,14 @@ public class ExpressionVisitor extends Visitor {
             Reference prf, Functional dec) {
         List<ParameterList> pls = dec.getParameterLists();
         if (pls.isEmpty()) {
-            if (dec instanceof TypeDeclaration) {
+            /*if (dec instanceof TypeDeclaration) {
                 that.addError("type has no parameter list: '" + 
                         dec.getName(unit) + "'");
             }
             else {
                 that.addError("function has no parameter list: '" +
                         dec.getName(unit) + "'");
-            }
+            }*/
         }
         else /*if (!dec.isOverloaded())*/ {
             ParameterList pl = pls.get(0);            
@@ -5935,13 +5943,8 @@ public class ExpressionVisitor extends Visitor {
         TypedDeclaration member = 
                 resolveBaseMemberExpression(that, 
                         notDirectlyInvoked);
+        checkExtendsClauseReference(that, member);
         if (member!=null && notDirectlyInvoked) {
-            if (inExtendsClause &&
-                    constructorClass!=null &&
-                    member.getContainer()
-                        .equals(constructorClass)) {
-                that.addError("reference to class member from constructor extends clause");
-            }
             Tree.TypeArguments tal = that.getTypeArguments();
             List<Type> typeArgs;
             if (typeConstructorArgumentsInferrable(member, that)) {
@@ -5950,8 +5953,9 @@ public class ExpressionVisitor extends Visitor {
                             .getInferredTypeArgsForFunctionRef(that);
             }
             else if (explicitTypeArguments(member, tal)) {
-                typeArgs = getTypeArguments(tal, null, 
-                        getTypeParameters(member));
+                typeArgs = 
+                        getTypeArguments(tal, null, 
+                                getTypeParameters(member));
             }
             else {
                 typeArgs = 
@@ -5968,6 +5972,20 @@ public class ExpressionVisitor extends Visitor {
                 visitGenericBaseMemberReference(that, member);
 //                typeArgumentsImplicit(that);
             }
+        }
+    }
+
+    private void checkExtendsClauseReference(
+            Tree.BaseMemberOrTypeExpression that,
+            Declaration member) {
+        if (inExtendsClause &&
+                constructorClass!=null &&
+                member!=null &&
+                member.getContainer()
+                    .equals(constructorClass) &&
+                !member.isStaticallyImportable() &&
+                !isConstructor(member)) {
+            that.addError("reference to class member from constructor extends clause");
         }
     }
 
@@ -6012,7 +6030,7 @@ public class ExpressionVisitor extends Visitor {
         }
         else {
             member = (TypedDeclaration) 
-                    handleAbstractionOrHeader(member, that);
+                    handleAbstractionOrHeader(member, that, error);
             that.setDeclaration(member);
             if (error) {
                 if (checkConcreteConstructor(member, that)) {
@@ -6049,9 +6067,9 @@ public class ExpressionVisitor extends Visitor {
                             .getInferredTypeArgsForFunctionRef(that);
             }
             else if (explicitTypeArguments(member, tal)) {
-                typeArgs = getTypeArguments(tal, 
-                        receiverType, 
-                        getTypeParameters(member));
+                typeArgs = 
+                        getTypeArguments(tal, receiverType, 
+                                getTypeParameters(member));
             }
             else {
                 typeArgs = 
@@ -6173,15 +6191,14 @@ public class ExpressionVisitor extends Visitor {
                 id!=null && 
                 !id.getText().equals("");
         if (nameNonempty && checkMember(that)) {
-            Tree.Primary p = that.getPrimary();
+            Tree.Primary primary = that.getPrimary();
             String name = name(id);
-            List<Type> signature = 
-                    that.getSignature();
+            List<Type> signature = that.getSignature();
             boolean ellipsis = that.getEllipsis();
             String container;
             boolean ambiguous;
             TypedDeclaration member;
-            if (p instanceof Tree.Package) {
+            if (primary instanceof Tree.Package) {
                 Package pack = unit.getPackage();
                 container = "package '" + 
                         pack.getNameAsString() + "'";
@@ -6191,8 +6208,8 @@ public class ExpressionVisitor extends Visitor {
             }
             else {
                 Type pt = 
-                        p.getTypeModel()
-                         .resolveAliases(); //needed for aliases like "alias Id<T> => T"
+                        primary.getTypeModel()
+                            .resolveAliases(); //needed for aliases like "alias Id<T> => T"
                 TypeDeclaration d = getDeclaration(that, pt);
                 container = "type '" + d.getName(unit) + "'";
                 Scope scope = that.getScope();
@@ -6201,10 +6218,17 @@ public class ExpressionVisitor extends Visitor {
                 if (ci!=null && 
                         d.inherits(ci) && 
                         !(d instanceof NothingType)) {
+                    //just in case the current class is a 
+                    //superclass of the receiver type, and
+                    //has a private member with the given
+                    //name, check the current class
                     Declaration direct = 
                             ci.getDirectMember(name, 
                                     signature, ellipsis);
-                    if (direct instanceof TypedDeclaration) {
+                    if (direct instanceof TypedDeclaration &&
+                            //ignore it if shared, since it
+                            //might be refined by the subtype
+                            !direct.isShared()) {
                         member = (TypedDeclaration) direct;
                     }
                     else {
@@ -6237,11 +6261,11 @@ public class ExpressionVisitor extends Visitor {
             }
             else {
                 member = (TypedDeclaration) 
-                        handleAbstractionOrHeader(member, that);
+                        handleAbstractionOrHeader(member, that, error);
                 that.setDeclaration(member);
                 resetSuperReference(that);
                 boolean selfReference = 
-                        isSelfReference(p);
+                        isSelfReference(primary);
                 if (!selfReference && 
                         !member.isShared()) {
                     member.setOtherInstanceAccess(true);
@@ -6307,6 +6331,7 @@ public class ExpressionVisitor extends Visitor {
                             ptr.getFullType(wrap(ptr.getType(), 
                                     receivingType, that)));
             if (!dynamic && 
+                    !isNativeForWrongBackend() &&
                     !isAbstraction(member) && 
                     isTypeUnknown(fullType)) {
                 //this occurs with an ambiguous reference
@@ -6499,6 +6524,7 @@ public class ExpressionVisitor extends Visitor {
                             tal, outerType, typeArgs, 
                             pr.getFullType());
             if (!dynamic && 
+                    !isNativeForWrongBackend() &&
                     !isAbstraction(member) && 
                     isTypeUnknown(fullType)) {
                 that.addError("could not determine type of function or value reference: '" +
@@ -6522,13 +6548,14 @@ public class ExpressionVisitor extends Visitor {
         TypeDeclaration type = 
                 resolveBaseTypeExpression(that, 
                         notDirectlyInvoked);
+        checkExtendsClauseReference(that, type);
         if (type!=null && notDirectlyInvoked) {
             Tree.TypeArguments tal = that.getTypeArguments();
             List<Type> typeArgs;
             if (explicitTypeArguments(type, tal)) {
-                List<TypeParameter> tps = 
-                        type.getTypeParameters();
-                typeArgs = getTypeArguments(tal, null, tps);
+                typeArgs = 
+                        getTypeArguments(tal, null, 
+                                type.getTypeParameters());
             }
             else {
                 typeArgs = 
@@ -6587,13 +6614,13 @@ public class ExpressionVisitor extends Visitor {
         }
         else {
             type = (TypeDeclaration) 
-                    handleAbstractionOrHeader(type, that);
+                    handleAbstractionOrHeader(type, that, error);
             that.setDeclaration(type);
             if (error) {
                 if (checkConcreteClass(type, that)) {
                     if (checkSealedReference(type, that)) {
-                        checkBaseTypeAndConstructorVisibility(that, 
-                                name, type);
+                        checkBaseTypeAndConstructorVisibility(
+                                that, name, type);
                     }
                 }
             }
@@ -6725,7 +6752,7 @@ public class ExpressionVisitor extends Visitor {
         Declaration dec = that.getDeclaration();
         if (dec instanceof Class) {
             Class c = (Class) dec;
-            if (c.isAbstraction()) { 
+            if (c.isAbstraction()) {
                 //if the constructor is overloaded
                 //resolve the right overloaded version
                 Declaration result = 
@@ -6738,6 +6765,7 @@ public class ExpressionVisitor extends Visitor {
                     TypeDeclaration td = 
                             (TypeDeclaration) result;
                     that.setDeclaration(td);
+                    c = (Class) td;
                     if (isOverloadedVersion(result)) {  
                         //it is a Java constructor
                         if (result.isPackageVisibility() && 
@@ -6749,6 +6777,11 @@ public class ExpressionVisitor extends Visitor {
                 }
                 //else report to user that we could not
                 //find a matching overloaded constructor
+            }
+            if (c.getParameterList()==null) {
+                that.addError("class cannot be instantiated: '" +
+                        c.getName(unit) + 
+                        "' does not have a parameter list or default constructor");
             }
         }
     }
@@ -6808,10 +6841,9 @@ public class ExpressionVisitor extends Visitor {
                         .resolveAliases();
             List<Type> typeArgs;
             if (explicitTypeArguments(type, tal)) {
-                List<TypeParameter> tps = 
-                        type.getTypeParameters();
-                typeArgs = getTypeArguments(tal, receiverType, 
-                        tps);
+                typeArgs = 
+                        getTypeArguments(tal, receiverType, 
+                                type.getTypeParameters());
             }
             else {
                 typeArgs = 
@@ -6876,16 +6908,15 @@ public class ExpressionVisitor extends Visitor {
             Tree.QualifiedTypeExpression that,
             boolean error) {
         if (checkMember(that)) {
-            Tree.Primary p = that.getPrimary();
+            Tree.Primary primary = that.getPrimary();
             Tree.Identifier id = that.getIdentifier();
-            List<Type> signature = 
-                    that.getSignature();
+            List<Type> signature = that.getSignature();
             boolean ellipsis = that.getEllipsis();
             String name = name(id);
             String container;
             boolean ambiguous;
             TypeDeclaration type;
-            if (p instanceof Tree.Package) {
+            if (primary instanceof Tree.Package) {
                 Package pack = unit.getPackage();
                 container = "package '" + 
                         pack.getNameAsString() + "'";
@@ -6895,8 +6926,8 @@ public class ExpressionVisitor extends Visitor {
             }
             else {
                 Type pt = 
-                        p.getTypeModel()
-                         .resolveAliases(); //needed for aliases like "alias Id<T> => T"
+                        primary.getTypeModel()
+                            .resolveAliases(); //needed for aliases like "alias Id<T> => T"
                 TypeDeclaration d = getDeclaration(that, pt);
                 container = "type '" + d.getName(unit) + "'";
                 Scope scope = that.getScope();
@@ -6941,18 +6972,18 @@ public class ExpressionVisitor extends Visitor {
             }
             else {
                 type = (TypeDeclaration) 
-                        handleAbstractionOrHeader(type, that);
+                        handleAbstractionOrHeader(type, that, error);
                 that.setDeclaration(type);
                 resetSuperReference(that);
-                if (!isSelfReference(p) && 
+                if (!isSelfReference(primary) && 
                         !type.isShared()) {
                     type.setOtherInstanceAccess(true);
                 }
                 if (error) {
                     if (checkConcreteClass(type, that)) {
                         if (checkSealedReference(type, that)) {
-                            checkQualifiedTypeAndConstructorVisibility(that, 
-                                    type, name, container);
+                            checkQualifiedTypeAndConstructorVisibility(
+                                    that, type, name, container);
                         }
                     }
                     if (!inExtendsClause) {
@@ -6998,17 +7029,25 @@ public class ExpressionVisitor extends Visitor {
     private TypeDeclaration getDeclaration(
             Tree.QualifiedMemberOrTypeExpression that,
             Type pt) {
+        TypeDeclaration td;
         if (that.getStaticMethodReference()) {
             Tree.MemberOrTypeExpression primary = 
                     (Tree.MemberOrTypeExpression) 
                         that.getPrimary();
-            TypeDeclaration td = (TypeDeclaration) 
+            td = (TypeDeclaration)
                     primary.getDeclaration();
-            return td==null ? new UnknownType(unit) : td;
+            td = td==null ? new UnknownType(unit) : td;
         }
         else {
-            return unwrap(pt, that).getDeclaration();
+            td = unwrap(pt, that).getDeclaration();
         }
+        if (td != null && td.isNative() && !td.isNativeHeader()) {
+            TypeDeclaration _td = (TypeDeclaration)ModelUtil.getNativeHeader(td);
+            if (_td != null) {
+                td = _td;
+            }
+        }
+        return td;
     }
 
     private boolean explicitTypeArguments
@@ -7616,9 +7655,11 @@ public class ExpressionVisitor extends Visitor {
                                     caseUnionType(switchCaseList);
                             if (caseUnionType!=null) {
                                 Type complementType = 
-                                        /*unit.denotableType(*/
                                         switchExpressionType
                                             .minus(caseUnionType);
+                                complementType =
+                                        unit.denotableType(
+                                                complementType);
                                 var.getType()
                                     .setTypeModel(complementType);
                                 var.getDeclarationModel()
@@ -7944,6 +7985,25 @@ public class ExpressionVisitor extends Visitor {
             List<Type> typeArguments, 
             Tree.TypeArguments tas, 
             Node parent) {
+        boolean explicit = 
+                tas instanceof Tree.TypeArgumentList;
+        boolean typeExpression = 
+                parent instanceof Tree.SimpleType;
+        if (explicit && !typeExpression) {
+            Tree.TypeArgumentList tal = 
+                    (Tree.TypeArgumentList) tas;
+            for (Tree.Type t: tal.getTypes()) {
+                if (t instanceof Tree.StaticType) {
+                    Tree.StaticType st = 
+                            (Tree.StaticType) t;
+                    Tree.TypeVariance var = 
+                            st.getTypeVariance();
+                    if (var!=null) {
+                        var.addError("use-site variance annotation may not occur in value expression");
+                    }
+                }
+            }
+        }
         if (dec==null) {
             return false;
         }
@@ -7981,8 +8041,6 @@ public class ExpressionVisitor extends Visitor {
                     }
                 }
             }
-            boolean explicit = 
-                    tas instanceof Tree.TypeArgumentList;
             if (!empty || explicit) {
                 tas.addError("does not accept type arguments: '" + 
                         dec.getName(unit) + 
@@ -8552,15 +8610,17 @@ public class ExpressionVisitor extends Visitor {
     @Override
     public void visit(Tree.PackageLiteral that) {
         super.visit(that);
-        Package p;
-        if (that.getImportPath()==null) {
-            that.setImportPath(new Tree.ImportPath(null));
-            p = unit.getPackage();
+        Package pack;
+        Tree.ImportPath path = that.getImportPath();
+        if (path==null) {
+            path = new Tree.ImportPath(null);
+            that.setImportPath(path);
+            pack = unit.getPackage();
         }
         else {
-            p = TypeVisitor.getPackage(that.getImportPath(), backendSupport);
+            pack = importedPackage(path, backendSupport);
         }
-        that.getImportPath().setModel(p);
+        path.setModel(pack);
         that.setTypeModel(unit.getPackageDeclarationType());
     }
     
@@ -8573,7 +8633,7 @@ public class ExpressionVisitor extends Visitor {
             m = unit.getPackage().getModule();
         }
         else {
-            m = TypeVisitor.getModule(that.getImportPath());
+            m = importedModule(that.getImportPath());
         }
         that.getImportPath().setModel(m);
         that.setTypeModel(unit.getModuleDeclarationType());
@@ -8823,7 +8883,10 @@ public class ExpressionVisitor extends Visitor {
             that.setTypeModel(unit.getFunctionDeclarationType());
         }
         else {
-            checkNonlocal(that, result);
+            // constructors look like functions but they're always members, they can't
+            // ever be local
+            if(!ModelUtil.isConstructor(result))
+                checkNonlocal(that, result);
             setMetamodelType(that, result);
         }
     }
@@ -8951,31 +9014,68 @@ public class ExpressionVisitor extends Visitor {
     }*/
     
     private Declaration handleAbstractionOrHeader(Declaration dec, 
-            Tree.MemberOrTypeExpression that) {
+            Tree.MemberOrTypeExpression that, boolean error) {
+        Declaration impl = dec;
+        Declaration hdr = null;
+        Module ctxModule = that.getUnit().getPackage().getModule();
+        Module decModule = dec.getUnit().getPackage().getModule();
         if (dec.isNative()) {
-            if (!backendSupport.supportsBackend(Backend.None)) {
-                BackendSupport backend = 
-                        inBackend == null ?
-                                backendSupport : 
-                                inBackend.backendSupport;
-                Declaration impl;
-                Declaration hdr;
-                if (dec.isNativeHeader()) {
-                    hdr = dec;
-                    impl = getNativeDeclaration(hdr, backend);
-                } else {
-                    hdr = getNativeHeader(dec.getContainer(), dec.getName());
-                    if (hdr == null || backend.supportsBackend(Backend.fromAnnotation(dec.getNativeBackend()))) {
-                        impl = dec;
-                    } else {
+            BackendSupport backend = 
+                    inBackend == null ?
+                            backendSupport : 
+                            inBackend.backendSupport;
+            if (dec.isNativeHeader()) {
+                hdr = dec;
+                impl = getNativeDeclaration(hdr, backend);
+            }
+            else {
+                Declaration tmp = getNativeHeader(dec);
+                if (tmp != dec) {
+                    hdr = tmp;
+                    if (hdr != null && !backend.supportsBackend(Backend.fromAnnotation(dec.getNativeBackend()))) {
                         impl = getNativeDeclaration(hdr, backend);
                     }
                 }
-                if (impl==null && hdr != null) {
-                    if (!isImplemented(hdr)) {
+            }
+        }
+        if (error
+                && impl != null
+                && (dec.isToplevel() || dec.isMember())
+                && that.getScope() instanceof Declaration
+                && (hdr == null || !isImplemented(hdr))
+                && (ctxModule != decModule
+                        && decModule.isNative()
+                    || ctxModule == decModule
+                        && dec.isNative()
+                        && hdr == null
+                        && !isInNativeContainer((Declaration)that.getScope()))
+                && (inBackend == null
+                    || impl.isNative()
+                        && !impl.getNativeBackend().equals(inBackend.nativeAnnotation)
+                    || decModule.isNative()
+                        && !decModule.getNativeBackend().equals(inBackend.nativeAnnotation))) {
+            if (inBackend != null) {
+                that.addError("native declaration: '" +
+                        ((Declaration)that.getScope()).getName(unit) +
+                        "' accesses native code for different backend: '" +
+                        dec.getName(unit) +
+                        "'");
+            } else {
+                that.addError("non-native declaration: '" +
+                        ((Declaration)that.getScope()).getName(unit) +
+                        "' accesses native code: '" +
+                        dec.getName(unit) +
+                        "', mark it or the module native");
+            }
+        }
+        if (dec.isNative()) {
+            if (!backendSupport.supportsBackend(Backend.None)) {
+                if (error && impl == null && hdr != null) {
+                    if (!isImplemented(hdr) && !decModule.equals(decModule.getLanguageModule())) {
                         that.addError("no native implementation for backend: native '"
                                 + dec.getName(unit) +
                                 "' is not implemented for one or more backends");
+                        unit.getMissingNativeImplementations().add(hdr);
                     }
                 }
                 return inBackend == null || impl==null ? 

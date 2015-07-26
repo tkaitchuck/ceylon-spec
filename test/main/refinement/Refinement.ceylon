@@ -240,13 +240,32 @@ class CX() {
 }
 class CY() {
     shared default String name;
-    @error name = "Gavin";
-    @error shared actual String string => name;
+    name = "Gavin";
+    shared actual String string => name;
 }
+
+class CZ() {
+    shared default String name;
+    if (1==1) {
+        name = "Gavin";
+    }
+    else {
+        name = "Trompon";
+    }
+    shared actual String string => name;
+}
+
+class CW() {
+    @error shared default String name;
+    if (1==1) {
+        name = "Gavin";
+    }
+}
+
 
 class Elephant() {
     default shared String name;
-    @error name = "Trompon"; //this is controversial. Should it really be an error?
+    name = "Trompon"; //this is controversial. Should it really be an error?
     default shared Float size=1000.0;
     @error default shared Integer count;
     @error count++;
@@ -345,4 +364,13 @@ class DEF() extends ABC() {
     @error shared void mul(Integer hi) {
         print("Nope");
     }
+}
+
+
+class Options(shared default String abc) {}
+
+class OptionsExt(String abc) extends Options(abc) {}
+
+class OptionsExtExt() extends OptionsExt("initial") {
+    shared actual variable String abc = "initial";
 }

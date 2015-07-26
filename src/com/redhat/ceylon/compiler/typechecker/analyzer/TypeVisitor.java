@@ -1,15 +1,12 @@
 package com.redhat.ceylon.compiler.typechecker.analyzer;
 
-import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.declaredInPackage;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getPackageTypeDeclaration;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypeArguments;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypeDeclaration;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypeMember;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.getTypedDeclaration;
-import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.isConstructor;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.setTypeConstructor;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.unwrapAliasedTypeConstructor;
-import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.formatPath;
 import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.name;
 import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.unwrapExpressionUntilTerm;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.appliedType;
@@ -20,10 +17,7 @@ import static com.redhat.ceylon.model.typechecker.model.ModelUtil.intersection;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.intersectionOfSupertypes;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isImplemented;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isNativeImplementation;
-import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isToplevelAnonymousClass;
-import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isToplevelClassConstructor;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isTypeUnknown;
-import static com.redhat.ceylon.model.typechecker.model.ModelUtil.notOverloaded;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.union;
 import static com.redhat.ceylon.model.typechecker.model.SiteVariance.IN;
 import static com.redhat.ceylon.model.typechecker.model.SiteVariance.OPAQUE;
@@ -31,20 +25,15 @@ import static com.redhat.ceylon.model.typechecker.model.SiteVariance.OUT;
 import static java.lang.Integer.parseInt;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import com.redhat.ceylon.common.Backend;
 import com.redhat.ceylon.common.BackendSupport;
 import com.redhat.ceylon.compiler.typechecker.context.TypecheckerUnit;
-import com.redhat.ceylon.compiler.typechecker.parser.CeylonLexer;
 import com.redhat.ceylon.compiler.typechecker.tree.Node;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.TypeSpecifier;
 import com.redhat.ceylon.compiler.typechecker.tree.Visitor;
-import com.redhat.ceylon.model.cmr.JDKUtils;
 import com.redhat.ceylon.model.typechecker.model.Class;
 import com.redhat.ceylon.model.typechecker.model.ClassAlias;
 import com.redhat.ceylon.model.typechecker.model.ClassOrInterface;
@@ -52,13 +41,9 @@ import com.redhat.ceylon.model.typechecker.model.Constructor;
 import com.redhat.ceylon.model.typechecker.model.Declaration;
 import com.redhat.ceylon.model.typechecker.model.Function;
 import com.redhat.ceylon.model.typechecker.model.FunctionOrValue;
-import com.redhat.ceylon.model.typechecker.model.Import;
-import com.redhat.ceylon.model.typechecker.model.ImportList;
 import com.redhat.ceylon.model.typechecker.model.Interface;
 import com.redhat.ceylon.model.typechecker.model.Module;
-import com.redhat.ceylon.model.typechecker.model.ModuleImport;
 import com.redhat.ceylon.model.typechecker.model.NothingType;
-import com.redhat.ceylon.model.typechecker.model.Package;
 import com.redhat.ceylon.model.typechecker.model.Parameter;
 import com.redhat.ceylon.model.typechecker.model.Scope;
 import com.redhat.ceylon.model.typechecker.model.Specification;
@@ -99,567 +84,35 @@ public class TypeVisitor extends Visitor {
         this.backendSupport = backendSupport;
     }
     
-    public TypeVisitor(TypecheckerUnit unit, BackendSupport backendSupport) {
+    public TypeVisitor(TypecheckerUnit unit, 
+            BackendSupport backendSupport) {
         this.unit = unit;
         this.backendSupport = backendSupport;
-        String nat = unit.getPackage().getModule().getNativeBackend();
+        String nat = 
+                unit.getPackage()
+                    .getModule()
+                    .getNativeBackend();
         inBackend = Backend.fromAnnotation(nat);
     }
     
     @Override public void visit(Tree.CompilationUnit that) {
         unit = that.getUnit();
         Backend ib = inBackend;
-        String nat = unit.getPackage().getModule().getNativeBackend();
+        String nat = 
+                unit.getPackage()
+                    .getModule()
+                    .getNativeBackend();
         inBackend = Backend.fromAnnotation(nat);
         super.visit(that);
         inBackend = ib;
-        HashSet<String> set = new HashSet<String>();
-        for (Tree.Import im: that.getImportList().getImports()) {
-            Tree.ImportPath ip = im.getImportPath();
-            if (ip!=null) {
-                String mp = formatPath(ip.getIdentifiers());
-                if (!set.add(mp)) {
-                    ip.addError("duplicate import: '" + mp + "'");
-                }
-            }
-        }
-    }
-    
-    @Override
-    public void visit(Tree.Import that) {
-        Package importedPackage = 
-                getPackage(that.getImportPath(), backendSupport);
-        if (importedPackage!=null) {
-            that.getImportPath().setModel(importedPackage);
-            Tree.ImportMemberOrTypeList imtl = 
-                    that.getImportMemberOrTypeList();
-            if (imtl!=null) {
-                ImportList il = imtl.getImportList();
-                il.setImportedScope(importedPackage);
-                Set<String> names = new HashSet<String>();
-                for (Tree.ImportMemberOrType member: 
-                        imtl.getImportMemberOrTypes()) {
-                    names.add(importMember(member, importedPackage, il));
-                }
-                if (imtl.getImportWildcard()!=null) {
-                    importAllMembers(importedPackage, names, il);
-                } 
-                else if (imtl.getImportMemberOrTypes().isEmpty()) {
-                    imtl.addError("empty import list");
-                }
-            }
-        }
-    }
-    
-    private void importAllMembers(Package importedPackage, 
-            Set<String> ignoredMembers, ImportList il) {
-        for (Declaration dec: importedPackage.getMembers()) {
-            if (dec.isShared() && 
-                    !dec.isAnonymous() && 
-                    !ignoredMembers.contains(dec.getName()) &&
-                    !isNonimportable(importedPackage, dec.getName())) {
-                addWildcardImport(il, dec);
-            }
-        }
-    }
-    
-    private void importAllMembers(TypeDeclaration importedType, 
-            Set<String> ignoredMembers, ImportList til) {
-        for (Declaration dec: importedType.getMembers()) {
-            if (dec.isShared() && 
-                    (dec.isStaticallyImportable() || 
-                            isConstructor(dec)) && 
-                    !dec.isAnonymous() && 
-                    !ignoredMembers.contains(dec.getName())) {
-                addWildcardImport(til, dec, importedType);
-            }
-        }
-    }
-    
-    private void addWildcardImport(ImportList il, Declaration dec) {
-        if (!hidesToplevel(dec)) {
-            Import i = new Import();
-            i.setAlias(dec.getName());
-            i.setDeclaration(dec);
-            i.setWildcardImport(true);
-            addWildcardImport(il, dec, i);
-        }
-    }
-    
-    private void addWildcardImport(ImportList il, Declaration dec, TypeDeclaration td) {
-        if (!hidesToplevel(dec)) {
-            Import i = new Import();
-            i.setAlias(dec.getName());
-            i.setDeclaration(dec);
-            i.setWildcardImport(true);
-            i.setTypeDeclaration(td);
-            addWildcardImport(il, dec, i);
-        }
-    }
-    
-    private void addWildcardImport(ImportList il, Declaration dec, Import i) {
-        if (notOverloaded(dec)) {
-            String alias = i.getAlias();
-            if (alias!=null) {
-                Import o = unit.getImport(dec.getName());
-                if (o!=null && o.isWildcardImport()) {
-                    if (o.getDeclaration().equals(dec) || dec.isNativeHeader()) {
-                        //this case only happens in the IDE,
-                        //due to reuse of the Unit
-                        unit.getImports().remove(o);
-                        il.getImports().remove(o);
-                    }
-                    else if (!dec.isNative()) {
-                        i.setAmbiguous(true);
-                        o.setAmbiguous(true);
-                    }
-                }
-                unit.getImports().add(i);
-                il.getImports().add(i);
-            }
-        }
-    }
-    
-    public static Module getModule(Tree.ImportPath path) {
-        if (path!=null && 
-                !path.getIdentifiers().isEmpty()) {
-            String nameToImport = 
-                    formatPath(path.getIdentifiers());
-            Module module = 
-                    path.getUnit().getPackage()
-                        .getModule();
-            Package pkg = module.getPackage(nameToImport);
-            if (pkg != null) {
-                Module mod = pkg.getModule();
-                if (!pkg.getNameAsString()
-                        .equals(mod.getNameAsString())) {
-                    path.addError("not a module: '" + 
-                            nameToImport + "'");
-                    return null;
-                }
-                if (mod.equals(module)) {
-                    return mod;
-                }
-                //check that the package really does belong to
-                //an imported module, to work around bug where
-                //default package thinks it can see stuff in
-                //all modules in the same source dir
-                Set<Module> visited = new HashSet<Module>();
-                for (ModuleImport mi: module.getImports()) {
-                    if (findModuleInTransitiveImports(mi.getModule(), 
-                            mod, visited)) {
-                        return mod; 
-                    }
-                }
-            }
-            path.addError("module not found in imported modules: '" + 
-                    nameToImport + "'", 7000);
-        }
-        return null;
-    }
-    
-    public static Package getPackage(Tree.ImportPath path, 
-            BackendSupport backendSupport) {
-        if (path!=null && 
-                !path.getIdentifiers().isEmpty()) {
-            String nameToImport = 
-                    formatPath(path.getIdentifiers());
-            Module module = 
-                    path.getUnit().getPackage()
-                        .getModule();
-            Package pkg = module.getPackage(nameToImport);
-            if (pkg != null) {
-                if (pkg.getModule().equals(module)) {
-                    return pkg;
-                }
-                if (!pkg.isShared()) {
-                    path.addError("imported package is not shared: '" + 
-                            nameToImport + "'", 402);
-                }
-//                if (module.isDefault() && 
-//                        !pkg.getModule().isDefault() &&
-//                        !pkg.getModule().getNameAsString()
-//                            .equals(Module.LANGUAGE_MODULE_NAME)) {
-//                    path.addError("package belongs to a module and may not be imported by default module: " +
-//                            nameToImport);
-//                }
-                //check that the package really does belong to
-                //an imported module, to work around bug where
-                //default package thinks it can see stuff in
-                //all modules in the same source dir
-                Set<Module> visited = new HashSet<Module>();
-                for (ModuleImport mi: module.getImports()) {
-                    if (findModuleInTransitiveImports(
-                            mi.getModule(), pkg.getModule(), 
-                            visited)) {
-                        return pkg; 
-                    }
-                }
-            } else {
-                for (ModuleImport mi: module.getImports()) {
-                    if (mi.isNative()) {
-                        Backend backend = 
-                                Backend.fromAnnotation(mi.getNativeBackend());
-                        String name = mi.getModule().getNameAsString();
-                        if (!backendSupport.supportsBackend(backend)
-                                && (nameToImport.equals(name)
-                                        || nameToImport.startsWith(name + "."))) {
-                            return null;
-                        }
-                        if (!backendSupport.supportsBackend(Backend.Java) && 
-                                (JDKUtils.isJDKAnyPackage(nameToImport) || 
-                                 JDKUtils.isOracleJDKAnyPackage(nameToImport))) {
-                            return null;
-                        }
-                    }
-                }
-            }
-            String help;
-            if(module.isDefault())
-                help = " (define a module and add module import to its module descriptor)";
-            else
-                help = " (add module import to module descriptor of '" +
-                        module.getNameAsString() + "')";
-            path.addError("package not found in imported modules: '" + 
-                    nameToImport + "'" + help, 7000);
-        }
-        return null;
-    }
-    
-    private static boolean findModuleInTransitiveImports(Module moduleToVisit, 
-            Module moduleToFind, Set<Module> visited) {
-        if (!visited.add(moduleToVisit)) {
-            return false;
-        }
-        else if (moduleToVisit.equals(moduleToFind)) {
-            return true;
-        }
-        else {
-            for (ModuleImport imp: moduleToVisit.getImports()) {
-                // skip non-exported modules
-                if (imp.isExport() &&
-                        findModuleInTransitiveImports(imp.getModule(), 
-                                moduleToFind, visited)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-    
-    private boolean hidesToplevel(Declaration dec) {
-        for (Declaration d: unit.getDeclarations()) {
-            String n = d.getName();
-            if (d.isToplevel() && n!=null && 
-                    dec.getName().equals(n)) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    private boolean checkForHiddenToplevel(Tree.Identifier id, 
-            Import i, Tree.Alias alias) {
-        for (Declaration d: unit.getDeclarations()) {
-            String n = d.getName();
-            Declaration idec = i.getDeclaration();
-            if (d.isToplevel() && n!=null && 
-                    i.getAlias().equals(n) &&
-                    !idec.equals(d) && 
-                    //it is legal to import an object declaration 
-                    //in the current package without providing an
-                    //alias:
-                    !isLegalAliasFreeImport(d, idec)) {
-                if (alias==null) {
-                    id.addError("toplevel declaration with this name declared in this unit: '" + n + "'");
-                }
-                else {
-                    alias.addError("toplevel declaration with this name declared in this unit: '" + n + "'");
-                }
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isLegalAliasFreeImport
-            (Declaration dec, Declaration importedDec) {
-        if (importedDec instanceof Value) {
-            Value value = (Value) importedDec;
-            TypeDeclaration td = value.getTypeDeclaration();
-            return td.isObjectClass() && td.equals(dec);
-        }
-        else {
-            return false;
-        }
-    }
-    
-    private void importMembers(Tree.ImportMemberOrType member, 
-            Declaration d) {
-        Tree.ImportMemberOrTypeList imtl = 
-                member.getImportMemberOrTypeList();
-        if (imtl!=null) {
-            if (d instanceof Value) {
-                Value v = (Value) d;
-                TypeDeclaration td = v.getTypeDeclaration();
-                if (td.isObjectClass()) {
-                    d = td;
-                }
-            }
-            if (d instanceof TypeDeclaration) {
-                Set<String> names = new HashSet<String>();
-                ImportList til = imtl.getImportList();
-                TypeDeclaration td = (TypeDeclaration) d;
-                til.setImportedScope(td);
-                List<Tree.ImportMemberOrType> imts = 
-                        imtl.getImportMemberOrTypes();
-                for (Tree.ImportMemberOrType imt: imts) {
-                    names.add(importMember(imt, td, til));
-                }
-                if (imtl.getImportWildcard()!=null) {
-                    importAllMembers(td, names, til);
-                }
-                else if (imts.isEmpty()) {
-                    imtl.addError("empty import list");
-                }
-            }
-            else {
-                imtl.addError("member alias list must follow a type");
-            }
-        }
-    }
-    
-    private void checkAliasCase(Tree.Alias alias, Declaration d) {
-        if (alias!=null) {
-            Tree.Identifier id = alias.getIdentifier();
-            int tt = id.getToken().getType();
-            if (d instanceof TypeDeclaration &&
-                    tt!=CeylonLexer.UIDENTIFIER) {
-                id.addError("imported type should have uppercase alias: '" +
-                        d.getName() + "'");
-            }
-            else if (d instanceof TypedDeclaration &&
-                    tt!=CeylonLexer.LIDENTIFIER) {
-                id.addError("imported member should have lowercase alias: '" +
-                        d.getName() + "'");
-            }
-        }
-    }
-    
-    private String importMember(Tree.ImportMemberOrType member,
-            Package importedPackage, ImportList il) {
-        Tree.Identifier id = 
-                member.getIdentifier();
-        if (id==null) {
-            return null;
-        }
-        Import i = new Import();
-        member.setImportModel(i);
-        Tree.Alias alias = member.getAlias();
-        String name = name(id);
-        if (alias==null) {
-            i.setAlias(name);
-        }
-        else {
-            i.setAlias(name(alias.getIdentifier()));
-        }
-        if (isNonimportable(importedPackage, name)) {
-            id.addError("root type may not be imported");
-            return name;
-        }        
-        Declaration d = 
-                importedPackage.getMember(name, null, false);
-        if (d==null) {
-            id.addError("imported declaration not found: '" + 
-                    name + "'", 
-                    100);
-            unit.getUnresolvedReferences().add(id);
-        }
-        else {
-            if (!declaredInPackage(d, unit)) {
-                if (!d.isShared()) {
-                    id.addError("imported declaration is not shared: '" +
-                            name + "'", 
-                            400);
-                }
-                else if (d.isPackageVisibility()) {
-                    id.addError("imported package private declaration is not visible: '" +
-                            name + "'");
-                }
-                else if (d.isProtectedVisibility()) {
-                    id.addError("imported protected declaration is not visible: '" +
-                            name + "'");
-                }
-            }
-            i.setDeclaration(d);
-            member.setDeclarationModel(d);
-            if (il.hasImport(d)) {
-                id.addError("already imported: '" + name + "'");
-            }
-            else if (!checkForHiddenToplevel(id, i, alias)) {
-                addImport(member, il, i);
-            }
-            checkAliasCase(alias, d);
-        }
-        if (d!=null) {
-            importMembers(member, d);
-        }
-        return name;
-    }
-    
-    private String importMember(Tree.ImportMemberOrType member, 
-            TypeDeclaration td, ImportList il) {
-        Tree.Identifier id = 
-                member.getIdentifier();
-        if (id==null) {
-            return null;
-        }
-        Import i = new Import();
-        member.setImportModel(i);
-        Tree.Alias alias = member.getAlias();
-        String name = name(id);
-        if (alias==null) {
-            i.setAlias(name);
-        }
-        else {
-            i.setAlias(name(alias.getIdentifier()));
-        }
-        Declaration m = td.getMember(name, null, false);
-        if (m==null) {
-            id.addError("imported declaration not found: '" + 
-                    name + "' of '" + 
-                    td.getName() + "'", 
-                    100);
-            unit.getUnresolvedReferences().add(id);
-        }
-        else {
-            List<Declaration> members = 
-                    m.getContainer().getMembers();
-            for (Declaration d: members) {
-                String dn = d.getName();
-                if (dn!=null &&
-                        dn.equals(name) && 
-                        !d.sameKind(m) &&
-                        !d.isAnonymous()) {
-                    //crazy interop cases like isOpen() + open()
-                    id.addError("ambiguous member declaration: '" +
-                            name + "' of '" + 
-                            td.getName() + "'");
-                    return null;
-                }
-            }
-            if (!m.isShared()) {
-                id.addError("imported declaration is not shared: '" +
-                        name + "' of '" + 
-                        td.getName() + "'", 
-                        400);
-            }
-            else if (!declaredInPackage(m, unit)) {
-                if (m.isPackageVisibility()) {
-                    id.addError("imported package private declaration is not visible: '" +
-                            name + "' of '" + 
-                            td.getName() + "'");
-                }
-                else if (m.isProtectedVisibility()) {
-                    id.addError("imported protected declaration is not visible: '" +
-                            name + "' of '" + 
-                            td.getName() + "'");
-                }
-            }
-            i.setTypeDeclaration(td);
-            if (!m.isStaticallyImportable() && 
-                    !isToplevelClassConstructor(td, m) &&
-                    !isToplevelAnonymousClass(m.getContainer())) {
-                if (alias==null) {
-                    member.addError("does not specify an alias");
-                }
-            }
-            i.setDeclaration(m);
-            member.setDeclarationModel(m);
-            if (il.hasImport(m)) {
-                id.addError("already imported: '" +
-                        name + "' of '" + td.getName() + "'");
-            }
-            else {
-                if (m.isStaticallyImportable() ||
-                        isToplevelClassConstructor(td, m) ||
-                        isToplevelAnonymousClass(m.getContainer())) {
-                    if (!checkForHiddenToplevel(id, i, alias)) {
-                        addImport(member, il, i);
-                    }
-                }
-                else {
-                    addMemberImport(member, il, i);
-                }
-            }
-            checkAliasCase(alias, m);
-        }
-        if (m!=null) {
-            importMembers(member, m);
-        }
-        //imtl.addError("member aliases may not have member aliases");
-        return name;
-    }
-
-    private void addImport(Tree.ImportMemberOrType member, 
-            ImportList il, Import i) {
-        String alias = i.getAlias();
-        if (alias!=null) {
-            Map<String, String> mods = unit.getModifiers();
-            if (mods.containsKey(alias) && 
-                    mods.get(alias).equals(alias)) {
-                //spec says you can't hide a language modifier
-                //unless the modifier itself has an alias
-                //(this is perhaps a little heavy-handed)
-                member.addError("import hides a language modifier: '" + 
-                        alias + "'");
-            }
-            else {
-                Import o = unit.getImport(alias);
-                if (o==null) {
-                    unit.getImports().add(i);
-                    il.getImports().add(i);
-                }
-                else if (o.isWildcardImport()) {
-                    unit.getImports().remove(o);
-                    il.getImports().remove(o);
-                    unit.getImports().add(i);
-                    il.getImports().add(i);
-                }
-                else {
-                    member.addError("duplicate import alias: '" + 
-                            alias + "'");
-                }
-            }
-        }
-    }
-    
-    private void addMemberImport(Tree.ImportMemberOrType member, 
-            ImportList il, Import i) {
-        String alias = i.getAlias();
-        if (alias!=null) {
-            if (il.getImport(alias)==null) {
-                unit.getImports().add(i);
-                il.getImports().add(i);
-            }
-            else {
-                member.addError("duplicate member import alias: '" + 
-                        alias + "'");
-            }
-        }
-    }
-    
-    private boolean isNonimportable(Package pkg, String name) {
-        return pkg.getQualifiedNameString().equals("java.lang") &&
-                ("Object".equals(name) ||
-                 "Throwable".equals(name) ||
-                 "Exception".equals(name));
     }
     
     @Override public void visit(Tree.Declaration that) {
         Backend ib = inBackend;
         String nat = that.getDeclarationModel().getNativeBackend();
-        inBackend = Backend.fromAnnotation(nat);
+        if (nat != null) {
+            inBackend = Backend.fromAnnotation(nat);
+        }
         super.visit(that);
         inBackend = ib;
     }
@@ -944,9 +397,11 @@ public class TypeVisitor extends Visitor {
                         null, false, unit);
             }
             if (type==null) {
-                that.addError("type declaration does not exist: '" + 
-                        name + "'", 102);
-                unit.getUnresolvedReferences().add(id);
+                if (!isNativeForWrongBackend()) {
+                    that.addError("type declaration does not exist: '" + 
+                            name + "'", 102);
+                    unit.getUnresolvedReferences().add(id);
+                }
             }
             else {
                 type = (TypeDeclaration)handleHeader(type, that);
@@ -1028,16 +483,18 @@ public class TypeVisitor extends Visitor {
                         getTypeMember(d, name, 
                                 null, false, unit);
                 if (type==null) {
-                    if (d.isMemberAmbiguous(name, unit, null, false)) {
-                        that.addError("member type declaration is ambiguous: '" + 
-                                name + "' for type '" + 
-                                d.getName() + "'");
-                    }
-                    else {
-                        that.addError("member type declaration does not exist: '" + 
-                                name + "' in type '" + 
-                                d.getName() + "'", 100);
-                        unit.getUnresolvedReferences().add(id);
+                    if (!isNativeForWrongBackend()) {
+                        if (d.isMemberAmbiguous(name, unit, null, false)) {
+                            that.addError("member type declaration is ambiguous: '" + 
+                                    name + "' for type '" + 
+                                    d.getName() + "'");
+                        }
+                        else {
+                            that.addError("member type declaration does not exist: '" + 
+                                    name + "' in type '" + 
+                                    d.getName() + "'", 100);
+                            unit.getUnresolvedReferences().add(id);
+                        }
                     }
                 }
                 else {
@@ -1304,10 +761,22 @@ public class TypeVisitor extends Visitor {
         if (pl==null && 
                 !cd.hasConstructors() && 
                 !cd.hasEnumerated()) {
-            that.addError("class without parameters must declare at least one constructor: class '" + 
-                    cd.getName() + 
-                    "' has neither parameter list nor constructors", 
-                    1001);
+            boolean error = true;
+            if (cd.isNative() && !cd.isNativeHeader()) {
+                Declaration hdr = getNativeHeader(cd);
+                if (hdr != null && hdr instanceof Class) {
+                    Class hcd = (Class)hdr;
+                    if (hcd.hasConstructors() || hcd.hasEnumerated()) {
+                        error = false;
+                    }
+                }
+            }
+            if (error) {
+                that.addError("class without parameters must declare at least one constructor: class '" + 
+                        cd.getName() + 
+                        "' has neither parameter list nor constructors", 
+                        1001);
+            }
         }
     }
 
@@ -2125,17 +1594,21 @@ public class TypeVisitor extends Visitor {
                             inBackend.backendSupport;
             Declaration hdr = dec;
             if (!hdr.isNativeHeader()) {
-                hdr = getNativeHeader(dec.getContainer(), dec.getName());
+                hdr = getNativeHeader(dec);
             }
             Declaration impl =
                     getNativeDeclaration(dec, backend);
             if (impl==null && hdr != null) {
-                if (!isImplemented(hdr) && hdr.isShared()) {
+                Module module = dec.getUnit().getPackage().getModule();
+                if (!isImplemented(hdr) && hdr.isShared()
+                        && !module.equals(module.getLanguageModule())) {
                     that.addError("no native implementation for backend: native '"
                             + dec.getName(unit) +
                             "' is not implemented for one or more backends");
+                    unit.getMissingNativeImplementations().add(hdr);
                 }
-            } else if (hdr==null) {
+            }
+            else if (hdr==null) {
                 that.addError("native implementation must have a header: "
                         + dec.getName(unit));
             }
@@ -2144,5 +1617,12 @@ public class TypeVisitor extends Visitor {
         }
         return dec;
     }
+    
+    // We use this for situations where the backend compiler can't check the
+    // validity of the code for the other backend 
+    private boolean isNativeForWrongBackend() {
+        return inBackend != null && 
+                !backendSupport.supportsBackend(inBackend);
+    }    
     
 }

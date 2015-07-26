@@ -1,10 +1,10 @@
 package com.redhat.ceylon.compiler.typechecker.analyzer;
 
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.NO_TYPE_ARGS;
-import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.isConstructor;
 import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.message;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.getNativeDeclaration;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isAbstraction;
+import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isConstructor;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isOverloadedVersion;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isResolvable;
 import static com.redhat.ceylon.model.typechecker.model.ModelUtil.isTypeUnknown;
@@ -47,7 +47,7 @@ import com.redhat.ceylon.model.typechecker.model.Value;
  */
 public class TypeHierarchyVisitor extends Visitor {
 
-    private final Map<TypeDeclaration,Type> types = new HashMap<TypeDeclaration, Type>();
+    private final Map<TypeDeclKey,Type> types = new HashMap<TypeDeclKey, Type>();
 
     private static final class Type {
         public Map<String,Members> membersByName = new HashMap<String, Members>();
@@ -66,6 +66,33 @@ public class TypeHierarchyVisitor extends Visitor {
         @Override
         public String toString() {
             return declaration.getName();
+        }
+    }
+    
+    // Special wrapper class for TypeDeclarations that takes into
+    // account the native backend property when determining equality
+    private static final class TypeDeclKey {
+        public final TypeDeclaration decl;
+        public TypeDeclKey(TypeDeclaration decl) {
+            this.decl = decl;
+        }
+        @Override
+        public int hashCode() {
+            return decl.hashCode();
+        }
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            TypeDeclKey other = (TypeDeclKey) obj;
+            return decl.equals(other.decl) && 
+                    (!decl.isNative() ||
+                            decl.getNativeBackend()
+                                .equals(other.decl.getNativeBackend()));
         }
     }
     
@@ -366,7 +393,8 @@ public class TypeHierarchyVisitor extends Visitor {
             if (!members.formals.isEmpty()) {
                 if (members.actualsNonFormals.isEmpty()) {
                     Declaration example = members.formals.iterator().next();
-                    Declaration declaringType = (Declaration) example.getContainer();
+                    Declaration declaringType = 
+                            (Declaration) example.getContainer();
                     if (!clazz.equals(declaringType)) {
                         addUnimplementedFormal(clazz, example);
                         that.addError("formal member '" + example.getName() + 
@@ -379,7 +407,8 @@ public class TypeHierarchyVisitor extends Visitor {
                     if (isOverloadedVersion(f)) {
                         boolean found = false;
                         for (Declaration a: members.actualsNonFormals) {
-                            if (a.getRefinedDeclaration().equals(f.getRefinedDeclaration())) {
+                            if (a.getRefinedDeclaration()
+                                    .equals(f.getRefinedDeclaration())) {
                                 found = true;
                                 break;
                             }
@@ -398,7 +427,8 @@ public class TypeHierarchyVisitor extends Visitor {
                                     }
                                 }
                             }
-                            Declaration declaringType = (Declaration) f.getContainer();
+                            Declaration declaringType = 
+                                    (Declaration) f.getContainer();
                             addUnimplementedFormal(clazz, f);
                             that.addError("overloaded formal member '" + f.getName() + 
                                     "(" + paramTypes + ")' of '" + declaringType.getName() +
@@ -548,7 +578,7 @@ public class TypeHierarchyVisitor extends Visitor {
     }*/
 
     private Type getOrBuildType(TypeDeclaration declaration) {
-        Type type = types.get(declaration);
+        Type type = types.get(new TypeDeclKey(declaration));
         if (type == null) {
             type = new Type();
             type.declaration = declaration;
@@ -562,7 +592,8 @@ public class TypeHierarchyVisitor extends Visitor {
                 }
                 if (declaration.isNative() && member.isNative()) {
                     // Make sure we get the right member declaration (the one for the same backend as its container)
-                    member = getNativeDeclaration(member, Backend.fromAnnotation(declaration.getNativeBackend()));
+                    Backend backend = Backend.fromAnnotation(declaration.getNativeBackend());
+                    member = getNativeDeclaration(member, backend);
                     if (member == null) {
                         continue;
                     }
@@ -589,14 +620,14 @@ public class TypeHierarchyVisitor extends Visitor {
                 if (member.isDefault()) {
                     members.defaults.add(member);
                 }
-                if (!member.isFormal() && !member.isDefault()) {
+                if (!member.isFormal() && !member.isDefault() && member.isShared()) {
                     members.nonFormalsNonDefaults.add(member);
                 }
                 if (member.isShared()) {
                     members.shared.add(member);
                 }
             }
-            types.put(declaration,type);
+            types.put(new TypeDeclKey(declaration),type);
         }
         return type;
     }
