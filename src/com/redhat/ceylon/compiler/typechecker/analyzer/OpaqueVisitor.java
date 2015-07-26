@@ -5,7 +5,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.redhat.ceylon.compiler.typechecker.tree.Tree;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.Identifier;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.ExtendedType;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.SimpleType;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.TypeArgumentList;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.TypeParameterDeclaration;
@@ -44,8 +44,8 @@ public class OpaqueVisitor extends Visitor {
 					+ " may not be constrained.");
 		}
 		super.visit(that);
-	}
-
+	}	
+	
 //	@Override
 //	public void visit(Tree.ParameterDeclaration that) {
 //		TypedDeclaration typedDeclaration = that.getTypedDeclaration();
@@ -59,35 +59,53 @@ public class OpaqueVisitor extends Visitor {
 //		super.visit(that);
 //	}
 	
-	@Override
-	public void visit(Tree.BaseType that) {
-		if (opaqueTypes.isEmpty()) {
-			return;
-		}
-		TypeArgumentList typeArgumentList = that.getTypeArgumentList();
-		if (typeArgumentList == null) {
-			return;
-		}
-		List<Tree.Type> typeArguments = typeArgumentList.getTypes();
-		List<TypeParameter> typeParameters = that.getDeclarationModel()
-				.getTypeParameters();
-		for (int i = 0; i < typeParameters.size() && i < typeArguments.size(); i++) {
-			Tree.Type arg = typeArguments.get(i);
-			if (arg instanceof Tree.SimpleType) {
-				TypeDeclaration declarationModel = ((Tree.SimpleType) arg)
-						.getDeclarationModel();
-				if (declarationModel instanceof TypeParameter) {
-					if (((TypeParameter) declarationModel).isOpaque()) {
-						if (!typeParameters.get(i).isOpaque()) {
-							that.addError("Opaque type: "
-									+ declarationModel.getName()
-									+ " may not be used in a non-opaque way.");
-						}
-					}
-				}
-			}
-		}
-	}
+//	@Override
+//	public void visit(Tree.ParameterList that) {
+//		for (Parameter parameter : that.getParameters()) {
+//			if (parameter instanceof ParameterDeclaration) {
+//				TypedDeclaration typedDeclaration = ((ParameterDeclaration) parameter).getTypedDeclaration();
+//				if (typedDeclaration instanceof AttributeDeclaration) {
+//					
+//				}
+//			}
+//		}
+//	}
+//	
+//	@Override
+//	public void visit(Tree.AttributeDeclaration that) {
+//		Tree.Type type = that.getType();
+//		if (type instanceof SimpleType) {
+//			handleAttribute((SimpleType)type);
+//		}
+//		//Handle other types
+//	}
+//	
+//	private void handleAttribute(Tree.SimpleType that) {
+//		TypeArgumentList tal = that.getTypeArgumentList();
+//		TypeDeclaration dm = that.getDeclarationModel();
+//		if (tal == null || dm == null) {
+//			return;
+//		}
+//		List<Tree.Type> typeArguments = tal.getTypes();
+//		List<TypeParameter> typeParameters = dm.getTypeParameters();
+//		
+//		for (int i = 0; i < typeParameters.size() && i < typeArguments.size(); i++) {
+//			Tree.Type arg = typeArguments.get(i);
+//			if (arg instanceof Tree.SimpleType) {
+//				TypeDeclaration declaration = ((Tree.SimpleType) arg).getDeclarationModel();
+//				if (declaration instanceof TypeParameter) {
+//					if (((TypeParameter) declaration).isOpaque()) {
+//						if (!typeParameters.get(i).isOpaque()) {
+//							that.addError("Opaque type: "
+//									+ declaration.getName()
+//									+ " may not be used in a non-opaque way.");
+//						}
+//					}
+//				}
+//			}
+//		}
+//	}
+
 	
 	@Override
 	public void visit(Tree.AnyClass that) {
@@ -104,6 +122,17 @@ public class OpaqueVisitor extends Visitor {
 			}
 		}
 		List<String> origional = beginNewScope(opaqueParamaters);
+//		SatisfiedTypes satisfiedTypes = that.getSatisfiedTypes();
+//		for (StaticType st : satisfiedTypes.getTypes()) {
+//
+//			if (st instanceof Tree.SimpleType) {
+//				TypeArgumentList typeArgumentList = ((Tree.SimpleType) st).getTypeArgumentList();
+//				Map<TypeParameter, Type> typeArguments = ((Tree.SimpleType) st).getDeclarationModel().getTypeParameters()
+//
+//			
+//			}
+//
+//		}
 		super.visit(that);
 		endNewScope(origional);
 //		TypeConstraintList typeConstraints = that.getTypeConstraintList();
@@ -114,32 +143,48 @@ public class OpaqueVisitor extends Visitor {
 //				}
 //			}
 //		}
-//		ExtendedType et = that.getExtendedType();
-//		if (et != null) {
-//			SimpleType type = et.getType();
-//			List<Tree.Type> typeArguments = type.getTypeArgumentList().getTypes();
-//			List<Type> typeModels = type.getTypeArgumentList().getTypeModels();
-//			for (Type t : typeModels) {
-//				t.gett
-//			}
-//			TypeDeclaration td = type.getDeclarationModel();
-//			if (td != null) {
-//				for (TypeParameter parentParam : td.getTypeParameters()) {
-//					if (parentParam.isOpaque()) {
-//						System.out.println(type);
-//						that.addError("Types that have opaque parameters may not be extended");
-//						break;
-//					}
-//				}
-//			}
-//		}
-//		SatisfiedTypes satisfiedTypes = that.getSatisfiedTypes();
-//		for (StaticType st : satisfiedTypes.getTypes()) {
-//			if (st instanceof Tree.SimpleType) {
-//				List<com.redhat.ceylon.compiler.typechecker.tree.Tree.Type> types = ((Tree.SimpleType)st).getTypeArgumentList().getTypes();
-//				types.get(0).get;
-//			}
-//		}
+		
+		
+
+		ExtendedType et = that.getExtendedType();
+		if (et != null) {
+			SimpleType type = et.getType();
+			TypeDeclaration td = type.getDeclarationModel();
+			TypeArgumentList typeArgumentList = type.getTypeArgumentList();
+
+			if (td != null && typeArgumentList != null) {
+				List<Tree.Type> typeArguments = typeArgumentList.getTypes();
+				List<TypeParameter> typeParameters = td.getTypeParameters();
+
+				for (int i = 0; i < typeParameters.size()
+						&& i < typeArguments.size(); i++) {
+					TypeParameter typeParameter = typeParameters.get(i);
+					boolean takesOpaque = typeParameter.isOpaque();
+
+					Tree.Type typeArg = typeArguments.get(i);
+					boolean passedOpque = false;
+					if (typeArg instanceof Tree.SimpleType) {
+						TypeDeclaration declaration = ((Tree.SimpleType) typeArg).getDeclarationModel();
+						if (declaration instanceof TypeParameter) {
+							if (((TypeParameter) declaration).isOpaque()) {
+								passedOpque = true;
+							}
+						}
+					}
+					if (takesOpaque && !passedOpque) {
+						typeArg.addError("Parrent class is opaque to "
+								+ typeParameter.getName()
+								+ " this class must be also.");
+					}
+					if (passedOpque && !takesOpaque) {
+						typeArg.addError("Parrnt class is not opaque to "
+								+ typeParameter.getName()
+								+ " but this class is.");
+					}
+				}
+			}
+		}
+
 	}
 	
 }

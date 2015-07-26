@@ -1,30 +1,24 @@
 package com.redhat.ceylon.compiler.typechecker.analyzer;
 
-import static com.redhat.ceylon.compiler.typechecker.analyzer.AnalyzerUtil.checkAssignable;
-import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.name;
-
 import java.util.List;
 
 import com.redhat.ceylon.compiler.typechecker.context.TypecheckerUnit;
-import com.redhat.ceylon.compiler.typechecker.tree.Node;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree;
-import com.redhat.ceylon.compiler.typechecker.tree.CustomTree.IsCase;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.AnyAttribute;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.AttributeDeclaration;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.ClassBody;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.Parameter;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.ParameterDeclaration;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.ParameterList;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.ValueParameterDeclaration;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.SimpleType;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.TypeArgumentList;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.UnionType;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.Variable;
 import com.redhat.ceylon.compiler.typechecker.tree.Visitor;
 import com.redhat.ceylon.model.typechecker.model.Class;
-import com.redhat.ceylon.model.typechecker.model.Constructor;
-import com.redhat.ceylon.model.typechecker.model.Interface;
 import com.redhat.ceylon.model.typechecker.model.Type;
 import com.redhat.ceylon.model.typechecker.model.TypeDeclaration;
 import com.redhat.ceylon.model.typechecker.model.TypeParameter;
 import com.redhat.ceylon.model.typechecker.model.TypedDeclaration;
-import com.redhat.ceylon.model.typechecker.model.Value;
 
 /**
  * This checks to make sure that objects that are locally mutable are properly
@@ -72,7 +66,8 @@ public class MutableVisitor extends Visitor {
 
 	private CurrentClass state = new CurrentClass(null, false);
 	private final Type immutableType;
-
+	private final OpaqueValidationVisitor opaqueVisitor = new OpaqueValidationVisitor();
+	
 	public MutableVisitor(TypecheckerUnit unit) {
 		immutableType = unit.getImmutableMaskDeclaration().getType();
 	}
@@ -120,7 +115,7 @@ public class MutableVisitor extends Visitor {
 		endObjectScope(orig);
 	}
 
-	void handelVariable(TypedDeclaration declarationModel, Node that) {
+	void handelVariable(TypedDeclaration declarationModel, Tree.TypedDeclaration that) {
 		if (state.isInClass()) {
 			if (state.isMutable()) {
 				if (declarationModel.isVariable()) {
@@ -142,6 +137,9 @@ public class MutableVisitor extends Visitor {
 									+ "' must be immutable or opaque. Found: " + type);
 						}
 					}
+				}
+				if (declarationModel.isShared() || state.isInParameterList()) {
+					that.visit(opaqueVisitor);
 				}
 			} else {
 				if (declarationModel.isVariable()
@@ -214,7 +212,8 @@ public class MutableVisitor extends Visitor {
 				for (Parameter p : list.getParameters()) {
 					Type type = p.getParameterModel().getModel().getType();
 					if (type.isSubtypeOf(immutableType)) {
-						//TODO: Check to make sure it is not 'aware' of any opaque types.
+						//Check to make sure it is not 'aware' of any opaque types.
+						p.visitChildren(opaqueVisitor);
 					} else {
 						TypeDeclaration declaration = type.eliminateNull().getDeclaration();
 						boolean opaque = false;
@@ -231,5 +230,39 @@ public class MutableVisitor extends Visitor {
 			}
 		}
 		endObjectScope(orig);
+	}
+	
+
+	private class OpaqueValidationVisitor extends Visitor {
+		@Override
+		public void visit(Tree.SimpleType that) {
+//			if (that.getIdentifier().getText().equals("NonOpaqueInterface")) {			
+//				System.out.println(that);
+//			}
+			TypeArgumentList tal = that.getTypeArgumentList();
+			TypeDeclaration dm = that.getDeclarationModel();
+			if (tal == null || dm == null) {
+				return;
+			}
+			List<Tree.Type> typeArguments = tal.getTypes();
+			List<TypeParameter> typeParameters = dm.getTypeParameters();
+
+			for (int i = 0; i < typeParameters.size() && i < typeArguments.size(); i++) {
+				Tree.Type arg = typeArguments.get(i);
+
+				if (arg instanceof Tree.SimpleType) {
+					TypeDeclaration declaration = ((Tree.SimpleType) arg).getDeclarationModel();
+					if (declaration instanceof TypeParameter) {
+						if (((TypeParameter) declaration).isOpaque()) {
+							if (!typeParameters.get(i).isOpaque()) {
+								that.addError("Opaque type: "
+										+ declaration.getName()
+										+ " may not be used in a non-opaque way.");
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 }
