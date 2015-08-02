@@ -1,6 +1,6 @@
 interface GettersSetters {
     
-    mutable class Setters() {
+    class Setters() {
         String hi { return "hi"; }
         assign hi {}
         @error assign howdy {  }
@@ -28,7 +28,7 @@ interface GettersSetters {
         @error assign hi {}
     }
     
-    mutable class SharedGetterSetter() {
+    class SharedGetterSetter() {
         shared String name {
             return "gavin";
         }

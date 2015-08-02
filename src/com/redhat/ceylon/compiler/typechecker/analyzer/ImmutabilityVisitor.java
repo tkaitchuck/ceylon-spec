@@ -6,12 +6,11 @@ import static com.redhat.ceylon.compiler.typechecker.tree.TreeUtil.name;
 import com.redhat.ceylon.compiler.typechecker.context.TypecheckerUnit;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.AnyAttribute;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.SimpleType;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.AttributeDeclaration;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.Variable;
 import com.redhat.ceylon.compiler.typechecker.tree.Visitor;
 import com.redhat.ceylon.model.typechecker.model.Class;
 import com.redhat.ceylon.model.typechecker.model.Type;
-import com.redhat.ceylon.model.typechecker.model.TypeDeclaration;
 
 /**
  * Validates that classes annotated with Immutable do not have variable members and their members are also
@@ -40,7 +39,7 @@ public class ImmutabilityVisitor extends Visitor {
 	}
     
     @Override
-    public void visit(AnyAttribute that) {    	
+    public void visit(AttributeDeclaration that) {    	
 		super.visit(that);
     	if (annotatedImmutableScope) {
     		if (that.getDeclarationModel().isVariable()) {
@@ -49,8 +48,12 @@ public class ImmutabilityVisitor extends Visitor {
     					+ "' satisfies Immutable. Members cannot be variable.'");
     		} else if (!that.getDeclarationModel().isNative()) {
     			Type type = that.getDeclarationModel().getType();
-    			checkAssignable(type, immutableType, that, "'" + className
-    					+ "' satisfies Immutable. Members must be immutable. Found: "+ type +" which is: "+type.getSatisfiedTypes());
+				if (!type.isSubtypeOf(immutableType)) {
+					that.addError("'"
+							+ className
+							+ "' satisfies Immutable. Members must be immutable. Found: "
+							+ type);
+				}
     		}
     	}
 	}
@@ -70,23 +73,6 @@ public class ImmutabilityVisitor extends Visitor {
     		}
     	}
     }
-
-//	@Override
-//	public void visit(Tree.ObjectDefinition that) {
-//		boolean ai = beginAnnotatedImmutableScope(that.getDeclarationModel().isImmutable());
-//		className = name(that.getIdentifier());
-//		super.visit(that);
-//		endAnnotatedImmutableScope(ai);
-//	}
-//
-//	@Override
-//	public void visit(Tree.ObjectArgument that) {
-//		boolean ai = beginAnnotatedImmutableScope(that.getDeclarationModel().isi);
-//		className = name(that.getIdentifier());
-//		super.visit(that);
-//		endAnnotatedImmutableScope(ai);
-//	}
-    
 
 	@Override
 	public void visit(Tree.AnyClass that) {

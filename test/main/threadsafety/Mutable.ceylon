@@ -16,6 +16,12 @@ class Mutable() {
 		@error shared variable List<Integer> ints = []; 
 	}//Error: ints may be mutated by another class 
 	
+	mutable class BadVariableInnerObject() {
+		@error shared variable object foo { 
+			void bar() {}
+		}
+	}
+	
 	class MutableParClass1(List<Integer> ints) { 
 	} 
 	
@@ -34,6 +40,23 @@ class Mutable() {
 	mutable object varParObject {
 		variable Integer i = 10;
 	}
+
+	class GeterSetterClass() satisfies Immutable {
+		Integer foo {
+			return 5;
+		}
+		assign foo { //Still not mutable.
+			//Ignore.
+		}
+	}
+	
+	class BadGeterSetterClass() satisfies Immutable {
+		Integer foo = 5;
+		@error assign foo {
+			//not allowed
+		}
+	}
+	
 	
 	class ParClass(List<Integer> ints) {
 	}

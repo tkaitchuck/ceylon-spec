@@ -6,12 +6,10 @@ import com.redhat.ceylon.compiler.typechecker.context.TypecheckerUnit;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.AnyAttribute;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.AttributeDeclaration;
+import com.redhat.ceylon.compiler.typechecker.tree.Tree.ObjectDefinition;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.Parameter;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.ParameterDeclaration;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.ParameterList;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.SimpleType;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.TypeArgumentList;
-import com.redhat.ceylon.compiler.typechecker.tree.Tree.UnionType;
 import com.redhat.ceylon.compiler.typechecker.tree.Tree.Variable;
 import com.redhat.ceylon.compiler.typechecker.tree.Visitor;
 import com.redhat.ceylon.model.typechecker.model.Class;
@@ -19,6 +17,7 @@ import com.redhat.ceylon.model.typechecker.model.Type;
 import com.redhat.ceylon.model.typechecker.model.TypeDeclaration;
 import com.redhat.ceylon.model.typechecker.model.TypeParameter;
 import com.redhat.ceylon.model.typechecker.model.TypedDeclaration;
+import com.redhat.ceylon.model.typechecker.model.Value;
 
 /**
  * This checks to make sure that objects that are locally mutable are properly
@@ -93,32 +92,24 @@ public class MutableVisitor extends Visitor {
 	}
 	
 	@Override
-	public void visit(AnyAttribute that) {
-//		if ("BadMutableParClass".equals(state.className)) {
-//			System.out.println();
-//			System.out.println(that.toString());
-//			System.out.println(state.isMutable);
-//			System.out.println(that.getDeclarationModel());
-//			System.out.println(that.getDeclarationModel().isVariable());
-//		}
-		handelVariable(that.getDeclarationModel(), that);
-		CurrentClass orig = beginObjectScope(new CurrentClass(null, false));
+	public void visit(Tree.TypedDeclaration that) {
+		if (that instanceof AnyAttribute || that instanceof Variable || that instanceof ObjectDefinition) {
+			handelVariable((Value)that.getDeclarationModel(), that);
+		}
+		CurrentClass orig;
+		if (that instanceof ObjectDefinition) {
+			orig = beginObjectScope(new CurrentClass(((ObjectDefinition)that).getAnonymousClass()));
+		} else {
+			orig = beginObjectScope(new CurrentClass(null, false));			
+		} 
 		super.visit(that);
-		endObjectScope(orig);
+		endObjectScope(orig);	
 	}
 
-	@Override
-	public void visit(Variable that) {
-		handelVariable(that.getDeclarationModel(), that);
-		CurrentClass orig = beginObjectScope(new CurrentClass(null, false));
-		super.visit(that);
-		endObjectScope(orig);
-	}
-
-	void handelVariable(TypedDeclaration declarationModel, Tree.TypedDeclaration that) {
+	void handelVariable(Value declarationModel, Tree.TypedDeclaration that) {
 		if (state.isInClass()) {
 			if (state.isMutable()) {
-				if (declarationModel.isVariable()) {
+				if (declarationModel.isVariable() && !declarationModel.isTransient()) {
 					Type type = declarationModel.getType();
 					TypeDeclaration declaration = type.eliminateNull().getDeclaration();
 					boolean opaque = false;
@@ -143,7 +134,8 @@ public class MutableVisitor extends Visitor {
 				}
 			} else {
 				if (declarationModel.isVariable()
-						&& !declarationModel.isNative()) {
+						&& !declarationModel.isNative()
+						&& !declarationModel.isTransient()) {
 					that.addError("Member is variable but class is not annotated 'mutable' "
 							+ state.className);
 				}
@@ -163,14 +155,6 @@ public class MutableVisitor extends Visitor {
 		Class declarationModel = that.getDeclarationModel();
 		CurrentClass previous = beginObjectScope(new CurrentClass(
 				declarationModel));
-		super.visit(that);
-		endObjectScope(previous);
-	}
-
-	@Override
-	public void visit(Tree.ObjectDefinition that) {
-		CurrentClass previous = beginObjectScope(new CurrentClass(
-				that.getAnonymousClass()));
 		super.visit(that);
 		endObjectScope(previous);
 	}
@@ -236,9 +220,6 @@ public class MutableVisitor extends Visitor {
 	private class OpaqueValidationVisitor extends Visitor {
 		@Override
 		public void visit(Tree.SimpleType that) {
-//			if (that.getIdentifier().getText().equals("NonOpaqueInterface")) {			
-//				System.out.println(that);
-//			}
 			TypeArgumentList tal = that.getTypeArgumentList();
 			TypeDeclaration dm = that.getDeclarationModel();
 			if (tal == null || dm == null) {

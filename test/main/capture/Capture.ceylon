@@ -83,7 +83,7 @@ class Capture() {
     mutable class ClassWithVariable() {
         @captured variable X x = X();
         @uncaptured variable X y = X();
-        @captured shared X z = X();
+        @captured shared variable X z = X();
         void innerMethod() {
             use(x);
         }
@@ -100,7 +100,7 @@ class Capture() {
         }
     }
     
-    mutable class ClassWithParameter(@captured X x) {
+    class ClassWithParameter(@captured X x) {
         void innerMethod() {
             use(x);
         }

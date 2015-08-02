@@ -17,7 +17,7 @@ class WithActual() extends WithActualFormal() {
 @error class WithoutActual() extends WithActualFormal() {}
 
 
-mutable abstract class Super2() {
+abstract class Super2() {
     shared default Integer defaultGetterSetter {
         return 2;
     } 

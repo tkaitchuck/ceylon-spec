@@ -171,14 +171,14 @@ mutable class RefinedAsVariableSetterSub() extends RefinedAsVariableSetterBase()
     assign bar {}    
 }
 
-mutable abstract class AbstractRefined(){
+abstract class AbstractRefined(){
     shared default String bar {
         return "";
     }
     assign bar {}
 }
 
-mutable class ConcreteRefinement() extends AbstractRefined() {
+class ConcreteRefinement() extends AbstractRefined() {
     shared actual String bar {
         return "";
     }
@@ -371,6 +371,6 @@ class Options(shared default String abc) {}
 
 class OptionsExt(String abc) extends Options(abc) {}
 
-class OptionsExtExt() extends OptionsExt("initial") {
+mutable class OptionsExtExt() extends OptionsExt("initial") {
     shared actual variable String abc = "initial";
 }
